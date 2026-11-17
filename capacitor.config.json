@@ -1,0 +1,8 @@
+{
+  "appId": "in.pramodbenno.manalife",
+  "appName": "ManaLife",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

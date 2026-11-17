@@ -1,15 +1,17 @@
-
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Native Android/iOS builds bundle the same React app without a web service worker.
+// Normal GitHub Pages / browser builds retain the existing installable PWA.
 const base = '/'
+const nativeBuild = process.env.NATIVE_BUILD === 'true'
 
 export default defineConfig({
   base,
   plugins: [
     react(),
-    VitePWA({
+    ...(!nativeBuild ? [VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/icon.svg'],
       manifest: {
@@ -42,6 +44,6 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         cleanupOutdatedCaches: true
       }
-    })
+    })] : [])
   ]
 })

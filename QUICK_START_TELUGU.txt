@@ -1,0 +1,19 @@
+ManaLife Android APK + iPhone TestFlight Kit
+=========================================
+
+Idi direct APK/IPA kaadu. Mee existing ManaLife GitHub project ni mobile native build kosam prepare chese files.
+
+1) ZIP unzip -> ManaLife_Mobile_Kit lopala files ni C:\Users\Pmand\Desktop\Projects\ManaLife_V1 lo COPY / MERGE cheyyandi.
+2) Ee commands run cheyyandi:
+   git add capacitor.config.json vite.config.js scripts .github/workflows/manalife-android-apk.yml .github/workflows/manalife-ios-xcode.yml
+   git commit -m "Add ManaLife mobile builds"
+   git push origin main
+3) GitHub -> Actions -> ManaLife Android APK (test) -> Run workflow.
+4) Green check ayyaka Artifacts -> ManaLife-Android-debug-APK download -> unzip -> app-debug.apk phone lo install.
+5) iPhone kosam GitHub Actions -> ManaLife iOS Xcode project (source only) nunchi project download cheyyachu.
+   Kani TestFlight ki Apple Developer Program + Xcode 26+ + signing + App Store Connect upload compulsory.
+
+Supabase: VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY variables Actions -> Variables lo undali.
+SECRET keys GitHub lo / app lo pettakandi.
+
+Full detailed steps: MOBILE_README.md

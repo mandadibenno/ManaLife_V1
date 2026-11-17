@@ -1,0 +1,56 @@
+name: ManaLife iOS Xcode project (source only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate-ios-project:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout ManaLife
+        uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install ManaLife dependencies
+        run: npm ci
+
+      - name: Add Capacitor dependencies for CI
+        run: npm install --no-save @capacitor/core@8 @capacitor/cli@8 @capacitor/ios@8
+
+      - name: Validate public Supabase build variables
+        shell: bash
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [[ -z "$VITE_SUPABASE_URL" || -z "$VITE_SUPABASE_PUBLISHABLE_KEY" ]]; then
+            echo 'ERROR: Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY as repository Actions Variables.'
+            exit 1
+          fi
+
+      - name: Build bundled ManaLife website for iOS
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: node scripts/build-mobile.mjs
+
+      - name: Generate iOS Xcode project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Upload iOS Xcode source project (NOT an IPA)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ManaLife-iOS-Xcode-Project-UNSIGNED
+          path: ios/
+          if-no-files-found: error
+          retention-days: 14
