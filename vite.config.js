@@ -3,9 +3,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const base = process.env.GITHUB_PAGES === 'true'
-  ? '/ManaLife_V1/'
-  : '/'
+const base = '/'
 
 export default defineConfig({
   base,
