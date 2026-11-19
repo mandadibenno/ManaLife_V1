@@ -2929,7 +2929,7 @@ async function loadRoomWorkspace(userId, preferredRoomId = null) {
   };
 }
 
-function RoomSelector({ rooms, home, demo, onSelect, onCreated }) {
+function RoomSelector({ rooms, home, demo, onSelect, onCreated, onJoin }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
@@ -3125,6 +3125,14 @@ function RoomSelector({ rooms, home, demo, onSelect, onCreated }) {
                 </span>
               </button>
             ))}
+            {!demo && (
+              <button type="button" onClick={() => { setDropdownOpen(false); onJoin?.(); }}
+                style={{ width: "100%", padding: 11, marginBottom: 6,
+                  border: "1px solid #b3cbb9", borderRadius: 9, background: "#edf5f0",
+                  color: "#496f64", fontWeight: 700, cursor: "pointer" }}>
+                + Join Room with Code
+              </button>
+            )}
             {!demo && (
               <button
                 type="button"
@@ -4256,6 +4264,284 @@ function RoomOwnershipPanel({
     </div>
   );
 }
+/* MANALIFE_MEET_APPROVAL_V1: owner approves each code/link join request. */
+function MeetRoomInvites({ home, rooms = [], demo, notify, onMemberAdded }) {
+  const ownedRooms = rooms.filter((r) => r.role === "owner");
+  const [roomId, setRoomId] = useState(home?.id || "");
+  const [invite, setInvite] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [decisionId, setDecisionId] = useState("");
+  const [error, setError] = useState("");
+
+  const selected = ownedRooms.find((r) => r.id === roomId);
+  useEffect(() => {
+    setRoomId(home?.id || "");
+    setInvite(null);
+    setRequests([]);
+    setError("");
+  }, [home?.id]);
+
+  useEffect(() => {
+    if (demo || !selected?.id) return;
+    let active = true;
+    const load = async () => {
+      const { data, error: dbError } = await supabase.rpc("list_pending_room_joins", {
+        p_room: selected.id,
+      });
+      if (active) {
+        if (dbError) setError(dbError.message);
+        else setRequests(Array.isArray(data) ? data : []);
+      }
+    };
+    load();
+    const timer = window.setInterval(load, 12000);
+    const focus = () => { if (document.visibilityState === "visible") load(); };
+    window.addEventListener("focus", focus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", focus);
+    };
+  }, [selected?.id, demo]);
+
+  async function makeInvite() {
+    if (!selected?.id || demo) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { data, error: dbError } = await supabase.rpc("get_room_join_invite", {
+        p_room: selected.id,
+      });
+      if (dbError) throw dbError;
+      if (!data?.token || !data?.code) throw Error("No invite returned.");
+      setInvite(data);
+      notify?.("Invite ready for " + selected.name + ".");
+    } catch (e) {
+      setError(e.message || "Could not generate link.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decide(item, approve) {
+    if (!selected?.id || decisionId) return;
+    setDecisionId(item.id);
+    setError("");
+    try {
+      const { error: dbError } = await supabase.rpc("decide_room_join", {
+        p_request: item.id,
+        p_approve: approve,
+      });
+      if (dbError) throw dbError;
+      setRequests((old) => old.filter((r) => r.id !== item.id));
+      notify?.(approve ? "Friend admitted to " + selected.name : "Request rejected.");
+      if (approve) await onMemberAdded?.();
+    } catch (e) {
+      setError(e.message || "Unable to decide request.");
+    } finally {
+      setDecisionId("");
+    }
+  }
+
+  const baseUrl = window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+    ? "https://app.pramodbenno.in"
+    : window.location.origin + window.location.pathname.replace(/\/$/, "");
+  const inviteLink = invite ? baseUrl + "/#join=" + encodeURIComponent(invite.token) : "";
+  const whatsappText = invite ?
+    "Join my ManaLife room: " + selected?.name + "\n" + inviteLink +
+    "\nSign in and tap Ask to Join. I'll admit you." : "";
+  async function copy(value) {
+    try {
+      await navigator.clipboard.writeText(value);
+      notify?.("Copied!");
+    } catch {
+      window.prompt("Copy this:", value);
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginTop: 12 }}>
+      <h3><UsersRound size={18} /> Invite People</h3>
+      <p className="settings-description">
+        Like Google Meet: share a link or code. Friends request entry, and
+        the room owner chooses <strong>Admit</strong> or <strong>Reject</strong>.
+        No friend's email needed.
+      </p>
+      <Field label="Room to invite into">
+        <select value={selected?.id || ""} disabled={demo || busy}
+          onChange={(e) => { setRoomId(e.target.value); setInvite(null); setRequests([]); }}>
+          {ownedRooms.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+      </Field>
+      <p style={{ fontSize: 12, margin: "8px 0", color: "#607967" }}>
+        Selected Room: <strong>{selected?.name || "Choose a room"}</strong>
+      </p>
+      <button type="button" className="primary-btn" disabled={!selected || busy || demo}
+        onClick={makeInvite}>
+        <Copy size={16} /> {busy ? "Preparing..." : "Get Invite Code & Link"}
+      </button>
+      {invite && selected?.id === invite.room_id && (
+        <div className="invite-code" style={{ marginTop: 14, overflowWrap: "anywhere" }}>
+          <strong>For: {selected.name}</strong>
+          <p style={{ fontSize: 12, color: "#607967" }}>
+            Invite expires in 30 days. Entry requires host approval.
+          </p>
+          <p>Room Code: <code>{invite.code}</code></p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button type="button" className="outline-btn" onClick={() => copy(invite.code)}>
+              <Copy size={15} /> Copy Code
+            </button>
+            <button type="button" className="outline-btn" onClick={() => copy(inviteLink)}>
+              <Copy size={15} /> Copy Link
+            </button>
+            <button type="button" className="primary-btn" onClick={() =>
+              window.open("https://wa.me/?text=" + encodeURIComponent(whatsappText),
+                "_blank", "noopener,noreferrer") }>
+              Share on WhatsApp
+            </button>
+          </div>
+        </div>
+      )}
+      <div style={{ marginTop: 22 }}>
+        <h3>Waiting Room {requests.length > 0 ? "(" + requests.length + ")" : ""}</h3>
+        {!requests.length && <p style={{ fontSize: 13, color: "#748879" }}>
+          No pending requests. New requests appear here automatically.
+        </p>}
+        {requests.map((r) => (
+          <div key={r.id} style={{ border: "1px solid #e1e8e2", borderRadius: 12,
+            padding: 12, marginTop: 10 }}>
+            <strong>{r.name || "Member"}</strong>
+            <p style={{ fontSize: 12, color: "#607967", margin: "4px 0 10px" }}>
+              {r.email || "Signed-in user"}
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" className="primary-btn" disabled={!!decisionId}
+                onClick={() => decide(r, true)}>Admit</button>
+              <button type="button" className="outline-btn" disabled={!!decisionId}
+                onClick={() => decide(r, false)}>Reject</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {error && <p className="inline-message error">{error}</p>}
+    </div>
+  );
+}
+
+function MeetJoinRoom({ initialCode = "", onJoined, onClose }) {
+  const [code, setCode] = useState(initialCode);
+  const [status, setStatus] = useState("");
+  const [roomName, setRoomName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => { setCode(initialCode); setStatus(""); setError(""); }, [initialCode]);
+
+  async function checkStatus() {
+    const { data, error: dbError } = await supabase.rpc("my_room_join_status", {
+      p_code: code.trim(),
+    });
+    if (dbError) throw dbError;
+    if (data?.status === "approved" && data.room_id) {
+      onJoined(data.room_id);
+      return;
+    }
+    setStatus(data?.status || "");
+    setRoomName(data?.room_name || "");
+  }
+  useEffect(() => {
+    if (status !== "pending") return;
+    let active = true;
+    const poll = async () => {
+      if (!active) return;
+      try { await checkStatus(); } catch (e) { if (active) setError(e.message); }
+    };
+    const timer = window.setInterval(poll, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [status, code]);
+
+  async function request(e) {
+    e.preventDefault();
+    if (!code.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { data, error: dbError } = await supabase.rpc("request_room_join", {
+        p_code: code.trim(),
+      });
+      if (dbError) throw dbError;
+      setRoomName(data?.room_name || "");
+      if (data?.status === "approved" && data.room_id) {
+        onJoined(data.room_id);
+      } else {
+        setStatus(data?.status || "pending");
+      }
+    } catch (err) {
+      setError(err.message || "Could not request entry.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function closeWaiting() {
+    if (status === "pending") {
+      setError("");
+      setBusy(true);
+      try {
+        const { error: dbError } = await supabase.rpc("cancel_room_join", {
+          p_code: code.trim(),
+        });
+        if (dbError) throw dbError;
+      } catch (e) {
+        setError(e.message || "Could not leave waiting room.");
+        setBusy(false);
+        return;
+      }
+    }
+    onClose();
+  }
+
+  return (
+    <div role="presentation" style={{ position: "fixed", inset: 0, zIndex: 12000,
+      background: "rgba(13,36,27,.65)", display: "grid", placeItems: "center", padding: 16 }}>
+      <div className="panel" role="dialog" aria-modal="true" aria-label="Join ManaLife Room"
+        style={{ width: "min(480px, 100%)", maxHeight: "90dvh", overflowY: "auto", margin: 0 }}>
+        <h2>Join a Room</h2>
+        <p style={{ color: "#688071", fontSize: 13 }}>
+          Enter the code your friend shared, or open their invite link.
+          Your friend must admit you before you can enter.
+        </p>
+        {status === "pending" ? (
+          <div style={{ padding: 14, border: "1px solid #dae6de", borderRadius: 12 }}>
+            <h3>Waiting for host approval...</h3>
+            <p>{roomName ? "Room: " + roomName : "Your request is pending."}</p>
+            <p style={{ fontSize: 12 }}>Once the owner taps Admit, you'll join automatically.</p>
+            <button type="button" className="outline-btn" onClick={() =>
+              checkStatus().catch((e) => setError(e.message))}>Check Status</button>
+          </div>
+        ) : status === "rejected" ? (
+          <p className="inline-message error">Host rejected this request. Ask them for a new invitation.</p>
+        ) : (
+          <form className="edit-form" onSubmit={request}>
+            <Field label="Room Code">
+              <input required value={code} disabled={busy} autoComplete="off" spellCheck="false"
+                placeholder="Paste room code" onChange={(e) => setCode(e.target.value)} />
+            </Field>
+            <button type="submit" className="primary-btn full" disabled={busy || !code.trim()}>
+              {busy ? "Sending request..." : "Ask to Join"} <ChevronRight size={16} />
+            </button>
+          </form>
+        )}
+        <button type="button" className="outline-btn" style={{ marginTop: 12 }} disabled={busy} onClick={closeWaiting}>
+          {status === "pending" ? "Leave Waiting Room" : "Cancel"}
+        </button>
+        {error && <p className="inline-message error">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   function PeriodTracker({ user, demo = false }) {
     const today = isoDate();
@@ -4883,6 +5169,24 @@ function App() {
   const [familyInfo, setFamilyInfo] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [activeRoomId, setActiveRoomId] = useState(null);
+  const [meetManualOpen, setMeetManualOpen] = useState(false);
+  const [meetManualCode, setMeetManualCode] = useState("");
+  const [meetInviteFromLink, setMeetInviteFromLink] = useState(() => {
+    const code = new URLSearchParams(window.location.hash.slice(1)).get("join");
+    if (code) sessionStorage.setItem("manalife-meet-invite", code);
+    return code || sessionStorage.getItem("manalife-meet-invite") || "";
+  });
+  useEffect(() => {
+    function capture() {
+      const code = new URLSearchParams(window.location.hash.slice(1)).get("join");
+      if (code) {
+        sessionStorage.setItem("manalife-meet-invite", code);
+        setMeetInviteFromLink(code);
+      }
+    }
+    window.addEventListener("hashchange", capture);
+    return () => window.removeEventListener("hashchange", capture);
+  }, []);
   const [rows, setRows] = useState(EMPTY);
   const [section, setSection] = useState("today");
   const [modal, setModal] = useState(null);
@@ -5274,14 +5578,48 @@ function App() {
         <p>Loading your private household...</p>
       </div>
     );
+  if (!demo && user && meetInviteFromLink)
+    return (
+      <MeetJoinRoom
+        initialCode={meetInviteFromLink}
+        onClose={() => {
+          sessionStorage.removeItem("manalife-meet-invite");
+          setMeetInviteFromLink("");
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }}
+        onJoined={(roomId) => {
+          sessionStorage.removeItem("manalife-meet-invite");
+          setMeetInviteFromLink("");
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          setActiveRoomId(roomId);
+          setSection("today");
+        }}
+      />
+    );
   if (!home)
     return (
+      <>
       <Onboarding
         user={user}
         onComplete={() => refresh(user.id, false)}
         notify={alert}
         notice={notice}
+        onJoinWithCode={(code) => {
+          setMeetManualCode(code);
+          setMeetManualOpen(true);
+        }}
       />
+      {meetManualOpen && (
+        <MeetJoinRoom initialCode={meetManualCode}
+          onClose={() => setMeetManualOpen(false)}
+          onJoined={(roomId) => {
+            setMeetManualOpen(false);
+            setActiveRoomId(roomId);
+            setSection("today");
+          }}
+        />
+      )}
+      </>
     );
 
   const titleMap = Object.fromEntries(SECTIONS.map((s) => [s.key, s]));
@@ -5389,6 +5727,17 @@ function App() {
 
   return (
     <div className="app-shell">
+      {meetManualOpen && createPortal(
+        <MeetJoinRoom initialCode={meetManualCode}
+          onClose={() => setMeetManualOpen(false)}
+          onJoined={(roomId) => {
+            setMeetManualOpen(false);
+            setActiveRoomId(roomId);
+            setRows(EMPTY);
+            setSection("today");
+          }}
+        />, document.body
+      )}
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="side-inner">
           <div className="side-brand">
@@ -5417,6 +5766,11 @@ function App() {
               setSidebarOpen(false);
               setRows(EMPTY);
               setActiveRoomId(roomId);
+            }}
+            onJoin={() => {
+              setMeetManualCode("");
+              setMeetManualOpen(true);
+              setSidebarOpen(false);
             }}
           />
 
@@ -6270,7 +6624,7 @@ function App() {
                     cannot access them.
                   </p>
                   {isOwner ? (
-                    <InvitePanel demo={demo} notify={alert} />
+                    <MeetRoomInvites home={home} rooms={rooms} demo={demo} notify={alert} onMemberAdded={() => refresh(user.id, false)} />
                   ) : (
                     <div className="callout">
                       <CheckCircle2 size={18} /> Only your household owner can
@@ -6278,8 +6632,8 @@ function App() {
                     </div>
                   )}
                   <div className="settings-description small-print">
-                    Invites expire in 48 hours, work once, and are tied to the
-                    invited email. Login is required.
+                    Room links and codes can be shared through WhatsApp. Guests request to join;
+                    only the owner can admit them. Login is required.
                   </div>
                 </div>
                 <div className="panel settings-panel">
@@ -6837,7 +7191,7 @@ function AuthScreen({ alert, notice }) {
   );
 }
 
-function Onboarding({ user, onComplete, notify, notice }) {
+function Onboarding({ user, onComplete, notify, notice, onJoinWithCode }) {
   const [tab, setTab] = useState("create"),
     [name, setName] = useState("Our Home"),
     [code, setCode] = useState(""),
@@ -6846,8 +7200,11 @@ function Onboarding({ user, onComplete, notify, notice }) {
     e.preventDefault();
     setBusy(true);
     try {
-      if (tab === "join") await joinFamily(code);
-      else await createFamily(name);
+      if (tab === "join") {
+        onJoinWithCode(code.trim());
+        return;
+      }
+      await createFamily(name);
       notify("Your household is ready!");
       await onComplete();
     } catch (e) {
@@ -6871,15 +7228,14 @@ function Onboarding({ user, onComplete, notify, notice }) {
         </h1>
         <p>
           Welcome, {user.user_metadata?.display_name || user.email}. Confirm
-          your email to create a new household instantly, or join a family's
-          household using an invitation for your email.
+          your email to create a new household instantly, or request access to a friend's room using a link or code.
         </p>
         <div className="auth-tabs">
           <button
             className={tab === "join" ? "active" : ""}
             onClick={() => setTab("join")}
           >
-            Join family with code
+            Join Room with Code
           </button>
           <button
             className={tab === "create" ? "active" : ""}
@@ -6900,8 +7256,7 @@ function Onboarding({ user, onComplete, notify, notice }) {
                 />
               </Field>
               <p className="fineprint">
-                Ask the household owner for a code generated specifically for
-                your email address.
+                Ask your friend for a room code, then request entry. The owner must Admit you.
               </p>
             </>
           ) : (
