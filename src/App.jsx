@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
+  Pill,
   Heart,
   LayoutDashboard,
   ListTodo,
@@ -121,6 +123,18 @@ const SECTIONS = [
     title: "Habit Tracker",
     caption: "Build better routines",
     icon: Repeat2,
+  },
+  {
+    key: "periods",
+    title: "Period Tracker",
+    caption: "Private cycle tracking",
+    icon: Heart,
+  },
+  {
+    key: "medicines",
+    title: "Medicine Tracker",
+    caption: "Medication schedule & history",
+    icon: Pill,
   },
   {
     key: "meals",
@@ -1258,6 +1272,7 @@ function MealPlanner({ home, user, demo = false }) {
   const [week, setWeek] = useState(monday);
   const [selectedDate, setSelectedDate] = useState(today);
   const [mealType, setMealType] = useState("breakfast");
+  const [showMealModal, setShowMealModal] = useState(false);
   const [meals, setMeals] = useState([]);
   const [mealName, setMealName] = useState("");
   const [servings, setServings] = useState(2);
@@ -1272,7 +1287,26 @@ function MealPlanner({ home, user, demo = false }) {
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(week, i));
 
-  const types = ["breakfast", "lunch", "dinner"];
+  const types = [
+    "breakfast",
+    "mid_morning",
+    "lunch",
+    "afternoon_snack",
+    "evening_snack",
+    "dinner",
+    "bedtime_snack",
+  ];
+
+  const mealLabels = {
+    breakfast: "Meal 1 · Breakfast",
+    mid_morning: "Meal 2 · Mid-morning",
+    lunch: "Meal 3 · Lunch",
+    afternoon_snack: "Meal 4 · Afternoon snack",
+    evening_snack: "Meal 5 · Evening snack",
+    dinner: "Meal 6 · Dinner",
+    bedtime_snack: "Meal 7 · Bedtime snack",
+  };
+
   const demoKey = `manalife-meals-${home.id}`;
 
   const card = {
@@ -1473,6 +1507,7 @@ function MealPlanner({ home, user, demo = false }) {
 
       await loadMeals();
       setMessage("Meal saved successfully!");
+      setShowMealModal(false);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1504,6 +1539,7 @@ function MealPlanner({ home, user, demo = false }) {
 
       await loadMeals();
       setMessage("Meal deleted.");
+      setShowMealModal(false);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1657,16 +1693,16 @@ function MealPlanner({ home, user, demo = false }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "105px repeat(3, minmax(145px, 1fr))",
+              gridTemplateColumns: "105px repeat(7, minmax(145px, 1fr))",
               gap: 8,
-              minWidth: 580,
+              minWidth: 1240,
               marginTop: 16,
             }}
           >
             <strong>Day</strong>
             {types.map((t) => (
               <strong key={t} style={{ textTransform: "capitalize" }}>
-                {t}
+                {mealLabels[t]}
               </strong>
             ))}
 
@@ -1694,6 +1730,8 @@ function MealPlanner({ home, user, demo = false }) {
                       onClick={() => {
                         setSelectedDate(day);
                         setMealType(t);
+                        setError("");
+                        setShowMealModal(true);
                       }}
                       style={{
                         minHeight: 65,
@@ -1717,11 +1755,83 @@ function MealPlanner({ home, user, demo = false }) {
         </div>
       </div>
 
-      <div style={card}>
+      {showMealModal && (
+        <div
+          onClick={() => setShowMealModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(18, 40, 32, 0.6)",
+            zIndex: 9998,
+          }}
+        />
+      )}
+
+      <div
+        role="dialog"
+        aria-modal={showMealModal}
+        aria-label="Meal Planner Editor"
+        style={{
+          ...card,
+          display: showMealModal ? "block" : "none",
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: "min(900px, 94vw)",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          zIndex: 9999,
+          margin: 0,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowMealModal(false)}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 9,
+            border: "1px solid #dce6df",
+            background: "#ffffff",
+            color: "#496f64",
+            cursor: "pointer",
+            float: "right",
+          }}
+        >
+          ✕ Close
+        </button>
+
         <h3>{selectedMeal ? "Edit Meal" : "Add Meal"}</h3>
-        <p style={{ color: "#718779" }}>
-          {selectedDate} · {mealType}
-        </p>
+
+        <div style={gridStyle}>
+          <label>
+            Select Date
+            <input
+              type="date"
+              style={inputStyle}
+              value={selectedDate}
+              min={week}
+              max={addDays(week, 6)}
+              onChange={(e) => setSelectedDate(e.target.value)}
+            />
+          </label>
+
+          <label>
+            Select Meal
+            <select
+              style={inputStyle}
+              value={mealType}
+              onChange={(e) => setMealType(e.target.value)}
+            >
+              {types.map((t) => (
+                <option key={t} value={t}>
+                  {mealLabels[t]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         <div style={gridStyle}>
           <label>
@@ -1972,13 +2082,2807 @@ function MealPlanner({ home, user, demo = false }) {
     </>
   );
 }
+function MedicineTracker({ user, demo = false }) {
+  const today = isoDate();
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [medicines, setMedicines] = useState([]);
+  const [dayLogs, setDayLogs] = useState([]);
+  const [recentLogs, setRecentLogs] = useState([]);
+  const [showPopup, setShowPopup] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
+  const blankMedicine = () => ({
+    name: "",
+    dose_label: "",
+    schedule_times: ["08:00"],
+    start_date: today,
+    end_date: "",
+    refill_on: "",
+    instructions: "",
+    is_active: true,
+  });
+  const [form, setForm] = useState(blankMedicine);
+
+  const card = {
+    background: "#fff",
+    border: "1px solid #e0e9e2",
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+  };
+  const input = {
+    display: "block",
+    width: "100%",
+    padding: 11,
+    border: "1px solid #dce6df",
+    borderRadius: 9,
+    background: "#fff",
+    color: "#294c3e",
+    boxSizing: "border-box",
+    marginTop: 6,
+  };
+  const greenButton = {
+    padding: "10px 14px",
+    background: "#496f64",
+    color: "#fff",
+    border: "none",
+    borderRadius: 9,
+    cursor: "pointer",
+    fontWeight: 600,
+  };
+  const outlineButton = {
+    ...greenButton,
+    background: "#fff",
+    color: "#496f64",
+    border: "1px solid #d8e5dc",
+  };
+
+  const timeLabel = (value) => {
+    const [hour, minute] = String(value).slice(0, 5).split(":").map(Number);
+    return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
+  };
+
+  async function loadMedicineData() {
+    if (demo || !user?.id) return;
+
+    const [medResult, dayResult, historyResult] = await Promise.all([
+      supabase
+        .from("medications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("medicine_logs")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("dose_date", selectedDate),
+      supabase
+        .from("medicine_logs")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("dose_date", { ascending: false })
+        .order("marked_at", { ascending: false })
+        .limit(30),
+    ]);
+
+    if (medResult.error) throw medResult.error;
+    if (dayResult.error) throw dayResult.error;
+    if (historyResult.error) throw historyResult.error;
+
+    setMedicines(medResult.data || []);
+    setDayLogs(dayResult.data || []);
+    setRecentLogs(historyResult.data || []);
+  }
+
+  useEffect(() => {
+    setError("");
+    setMedicines([]);
+    setDayLogs([]);
+    setRecentLogs([]);
+    loadMedicineData().catch((err) => setError(err.message));
+  }, [user?.id, demo, selectedDate]);
+
+  function openAdd() {
+    setEditingId(null);
+    setForm(blankMedicine());
+    setError("");
+    setMessage("");
+    setShowPopup(true);
+  }
+
+  function openEdit(medicine) {
+    setEditingId(medicine.id);
+    setForm({
+      name: medicine.name,
+      dose_label: medicine.dose_label || "",
+      schedule_times: (medicine.schedule_times || ["08:00"]).map((t) =>
+        String(t).slice(0, 5),
+      ),
+      start_date: medicine.start_date,
+      end_date: medicine.end_date || "",
+      refill_on: medicine.refill_on || "",
+      instructions: medicine.instructions || "",
+      is_active: medicine.is_active,
+    });
+    setError("");
+    setMessage("");
+    setShowPopup(true);
+  }
+
+  function changeTime(index, value) {
+    setForm((previous) => ({
+      ...previous,
+      schedule_times: previous.schedule_times.map((time, i) =>
+        i === index ? value : time,
+      ),
+    }));
+  }
+
+  function addTime() {
+    setForm((previous) => {
+      if (previous.schedule_times.length >= 8) return previous;
+      const suggestions = [
+        "13:00",
+        "20:00",
+        "22:00",
+        "06:00",
+        "10:00",
+        "16:00",
+        "18:00",
+        "08:00",
+      ];
+      const next =
+        suggestions.find((t) => !previous.schedule_times.includes(t)) ||
+        "12:00";
+      return {
+        ...previous,
+        schedule_times: [...previous.schedule_times, next],
+      };
+    });
+  }
+
+  async function saveMedicine(event) {
+    event.preventDefault();
+    setError("");
+
+    const times = form.schedule_times.map((t) => t.trim());
+    if (
+      !form.name.trim() ||
+      !form.start_date ||
+      times.length < 1 ||
+      times.length > 8 ||
+      times.some((t) => !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) ||
+      new Set(times).size !== times.length ||
+      (form.end_date && form.end_date < form.start_date)
+    ) {
+      setError("Enter a medicine name, valid dates and 1–8 different times.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const payload = {
+        name: form.name.trim(),
+        dose_label: form.dose_label.trim(),
+        schedule_times: [...times].sort(),
+        start_date: form.start_date,
+        end_date: form.end_date || null,
+        refill_on: form.refill_on || null,
+        instructions: form.instructions.trim(),
+        is_active: form.is_active,
+      };
+      const result = editingId
+        ? await supabase
+            .from("medications")
+            .update(payload)
+            .eq("id", editingId)
+            .eq("user_id", user.id)
+        : await supabase.from("medications").insert({
+            ...payload,
+            user_id: user.id,
+          });
+      if (result.error) throw result.error;
+      await loadMedicineData();
+      setShowPopup(false);
+      setMessage(editingId ? "Medicine updated." : "Medicine added.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteMedicine(medicine) {
+    if (
+      !window.confirm(
+        `Delete ${medicine.name} and its dose history permanently?`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const { error: dbError } = await supabase
+        .from("medications")
+        .delete()
+        .eq("id", medicine.id)
+        .eq("user_id", user.id);
+      if (dbError) throw dbError;
+      await loadMedicineData();
+      setMessage("Medicine deleted.");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setDoseStatus(medicine, time, status) {
+    if (busy || demo || !user?.id || selectedDate > today) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = status
+        ? await supabase.from("medicine_logs").upsert(
+            {
+              medication_id: medicine.id,
+              user_id: user.id,
+              dose_date: selectedDate,
+              dose_time: time,
+              status,
+              marked_at: new Date().toISOString(),
+            },
+            { onConflict: "medication_id,dose_date,dose_time" },
+          )
+        : await supabase
+            .from("medicine_logs")
+            .delete()
+            .eq("medication_id", medicine.id)
+            .eq("user_id", user.id)
+            .eq("dose_date", selectedDate)
+            .eq("dose_time", time);
+      if (result.error) throw result.error;
+      await loadMedicineData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const scheduled = medicines.filter(
+    (med) =>
+      med.is_active &&
+      med.start_date <= selectedDate &&
+      (!med.end_date || med.end_date >= selectedDate),
+  );
+  const doses = scheduled
+    .flatMap((med) =>
+      (med.schedule_times || []).map((time) => ({
+        medicine: med,
+        time: String(time).slice(0, 5),
+      })),
+    )
+    .sort((a, b) => a.time.localeCompare(b.time));
+  const logFor = (medicineId, time) =>
+    dayLogs.find(
+      (log) =>
+        log.medication_id === medicineId &&
+        String(log.dose_time).slice(0, 5) === time,
+    );
+  const takenCount = doses.filter(
+    (dose) => logFor(dose.medicine.id, dose.time)?.status === "taken",
+  ).length;
+  const skippedCount = doses.filter(
+    (dose) => logFor(dose.medicine.id, dose.time)?.status === "skipped",
+  ).length;
+
+  if (demo || !user?.id) {
+    return (
+      <>
+        <SectionHeader
+          eyebrow="PERSONAL HEALTH"
+          title="Medicine Tracker"
+          description="Private medication schedule and dose history."
+        />
+        <div style={card}>Sign in to manage your private medicine records.</div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <SectionHeader
+        eyebrow="PERSONAL HEALTH"
+        title="Medicine Tracker"
+        description="Track prescribed medicines and mark each scheduled dose."
+        right={
+          <button type="button" style={greenButton} onClick={openAdd}>
+            + Add Medicine
+          </button>
+        }
+      />
+
+      {error && !showPopup && (
+        <p role="alert" style={{ color: "#bb3d3d" }}>
+          {error}
+        </p>
+      )}
+      {message && <p style={{ color: "#387458" }}>{message}</p>}
+
+      <div
+        style={{
+          ...card,
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "end",
+          justifyContent: "space-between",
+          gap: 16,
+        }}
+      >
+        <label>
+          <strong>Schedule Date</strong>
+          <input
+            type="date"
+            style={{ ...input, width: 190 }}
+            max={today}
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          style={outlineButton}
+          onClick={() => setSelectedDate(today)}
+        >
+          Today
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+          gap: 12,
+          marginBottom: 18,
+        }}
+      >
+        {[
+          ["Scheduled", doses.length],
+          ["Taken", takenCount],
+          ["Skipped", skippedCount],
+          ["Not logged", doses.length - takenCount - skippedCount],
+        ].map(([label, value]) => (
+          <div key={label} style={{ ...card, marginBottom: 0 }}>
+            <p style={{ color: "#7b9184", fontSize: 12 }}>{label}</p>
+            <h2 style={{ margin: "6px 0 0", color: "#365f50" }}>{value}</h2>
+          </div>
+        ))}
+      </div>
+
+      <div style={card}>
+        <h3>
+          {selectedDate === today ? "Today's Medicines" : "Medicine Schedule"}
+        </h3>
+        {!doses.length && <p>No active medicines scheduled for this date.</p>}
+        {doses.map(({ medicine, time }) => {
+          const status = logFor(medicine.id, time)?.status;
+          return (
+            <div
+              key={`${medicine.id}-${time}`}
+              style={{
+                padding: "15px 0",
+                borderBottom: "1px solid #edf0ec",
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div>
+                <strong>{medicine.name}</strong>
+                <p style={{ fontSize: 13, color: "#748779" }}>
+                  {timeLabel(time)}{" "}
+                  {medicine.dose_label ? `· ${medicine.dose_label}` : ""}
+                </p>
+                {medicine.instructions && (
+                  <p style={{ fontSize: 12 }}>{medicine.instructions}</p>
+                )}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <strong
+                  style={{
+                    color:
+                      status === "taken"
+                        ? "#317353"
+                        : status === "skipped"
+                          ? "#ad7745"
+                          : "#798d82",
+                    fontSize: 12,
+                  }}
+                >
+                  {status === "taken"
+                    ? "Taken"
+                    : status === "skipped"
+                      ? "Skipped"
+                      : "Not logged"}
+                </strong>
+                <button
+                  type="button"
+                  disabled={busy}
+                  style={greenButton}
+                  onClick={() => setDoseStatus(medicine, time, "taken")}
+                >
+                  Taken
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  style={outlineButton}
+                  onClick={() => setDoseStatus(medicine, time, "skipped")}
+                >
+                  Skipped
+                </button>
+                {status && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    style={outlineButton}
+                    onClick={() => setDoseStatus(medicine, time, null)}
+                  >
+                    Undo
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={card}>
+        <h3>My Medicine List</h3>
+        {!medicines.length && <p>No medicines added yet.</p>}
+        {medicines.map((medicine) => (
+          <div
+            key={medicine.id}
+            style={{
+              borderBottom: "1px solid #edf0ec",
+              padding: "14px 0",
+              display: "flex",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <div>
+              <strong>{medicine.name}</strong>
+              <p style={{ fontSize: 12, color: "#748779" }}>
+                {medicine.dose_label || "Dose not specified"} ·{" "}
+                {medicine.schedule_times.map(timeLabel).join(", ")}
+              </p>
+              {medicine.refill_on && (
+                <p style={{ fontSize: 12 }}>
+                  Refill date: {dateLabel(medicine.refill_on)}
+                </p>
+              )}
+              {!medicine.is_active && <p style={{ fontSize: 12 }}>Paused</p>}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                type="button"
+                style={outlineButton}
+                onClick={() => openEdit(medicine)}
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                style={outlineButton}
+                disabled={busy}
+                onClick={() => deleteMedicine(medicine)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={card}>
+        <h3>Recent Dose History</h3>
+        {!recentLogs.length && <p>No medicine doses logged yet.</p>}
+        {recentLogs.map((log) => (
+          <div
+            key={log.id}
+            style={{
+              padding: "10px 0",
+              borderBottom: "1px solid #edf0ec",
+              display: "flex",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 8,
+            }}
+          >
+            <span>
+              {medicines.find((m) => m.id === log.medication_id)?.name ||
+                "Medicine"}
+              <span style={{ color: "#748779", fontSize: 12 }}>
+                {` · ${dateLabel(log.dose_date)} · ${timeLabel(log.dose_time)}`}
+              </span>
+            </span>
+            <strong
+              style={{
+                fontSize: 12,
+                color: log.status === "taken" ? "#317353" : "#ad7745",
+              }}
+            >
+              {log.status === "taken" ? "Taken" : "Skipped"}
+            </strong>
+          </div>
+        ))}
+      </div>
+
+      {showPopup && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !busy) setShowPopup(false);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(18,40,32,0.6)",
+            display: "grid",
+            placeItems: "center",
+            padding: 14,
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Medicine editor"
+            style={{
+              ...card,
+              width: "min(650px, 100%)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              margin: 0,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <h3>{editingId ? "Edit Medicine" : "Add Medicine"}</h3>
+              <button
+                type="button"
+                style={outlineButton}
+                disabled={busy}
+                onClick={() => setShowPopup(false)}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <form onSubmit={saveMedicine}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                <label>
+                  Medicine Name *
+                  <input
+                    required
+                    maxLength={150}
+                    style={input}
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Name from prescription"
+                  />
+                </label>
+                <label>
+                  Prescribed Dose
+                  <input
+                    maxLength={100}
+                    style={input}
+                    value={form.dose_label}
+                    onChange={(e) =>
+                      setForm({ ...form, dose_label: e.target.value })
+                    }
+                    placeholder="e.g. 1 tablet, as prescribed"
+                  />
+                </label>
+                <label>
+                  Start Date *
+                  <input
+                    type="date"
+                    required
+                    style={input}
+                    value={form.start_date}
+                    onChange={(e) =>
+                      setForm({ ...form, start_date: e.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  End Date (Optional)
+                  <input
+                    type="date"
+                    min={form.start_date}
+                    style={input}
+                    value={form.end_date}
+                    onChange={(e) =>
+                      setForm({ ...form, end_date: e.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  Refill Date (Optional)
+                  <input
+                    type="date"
+                    style={input}
+                    value={form.refill_on}
+                    onChange={(e) =>
+                      setForm({ ...form, refill_on: e.target.value })
+                    }
+                  />
+                </label>
+              </div>
+
+              <h4 style={{ marginTop: 20 }}>Daily Medicine Times (up to 8)</h4>
+              {form.schedule_times.map((time, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    marginBottom: 10,
+                  }}
+                >
+                  <input
+                    type="time"
+                    required
+                    style={{ ...input, maxWidth: 190, marginTop: 0 }}
+                    value={time}
+                    onChange={(e) => changeTime(index, e.target.value)}
+                  />
+                  {form.schedule_times.length > 1 && (
+                    <button
+                      type="button"
+                      style={outlineButton}
+                      onClick={() =>
+                        setForm((old) => ({
+                          ...old,
+                          schedule_times: old.schedule_times.filter(
+                            (_, i) => i !== index,
+                          ),
+                        }))
+                      }
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              ))}
+              {form.schedule_times.length < 8 && (
+                <button type="button" style={outlineButton} onClick={addTime}>
+                  + Add Time
+                </button>
+              )}
+
+              <label style={{ display: "block", marginTop: 16 }}>
+                Instructions (Optional)
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  style={input}
+                  value={form.instructions}
+                  onChange={(e) =>
+                    setForm({ ...form, instructions: e.target.value })
+                  }
+                  placeholder="Instructions provided by your clinician"
+                />
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  marginTop: 16,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.is_active}
+                  onChange={(e) =>
+                    setForm({ ...form, is_active: e.target.checked })
+                  }
+                />
+                Active schedule
+              </label>
+              {error && (
+                <p role="alert" style={{ color: "#bb3d3d" }}>
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={busy}
+                style={{
+                  ...greenButton,
+                  display: "block",
+                  width: "100%",
+                  marginTop: 20,
+                }}
+              >
+                {busy
+                  ? "Saving..."
+                  : editingId
+                    ? "Save Changes"
+                    : "Save Medicine"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <p style={{ color: "#849488", fontSize: 12 }}>
+        This is a personal log, not a prescribing or alarm service. Use only the
+        schedule provided by your clinician. A missed dose should not be doubled
+        unless instructed.
+      </p>
+    </>
+  );
+}
+
+async function loadRoomWorkspace(userId, preferredRoomId = null) {
+  const { data: memberships, error: membershipError } = await supabase
+    .from("household_members")
+    .select("household_id,role")
+    .eq("user_id", userId);
+
+  if (membershipError) throw membershipError;
+
+  if (!memberships?.length) {
+    return { rooms: [], familyInfo: null };
+  }
+
+  const ids = [...new Set(memberships.map((m) => m.household_id))];
+
+  const { data: households, error: roomsError } = await supabase
+    .from("households")
+    .select("id,name,created_by,room_type,enabled_modules,overview_modules")
+    .in("id", ids);
+
+  if (roomsError) throw roomsError;
+
+  const rooms = (households || []).map((room) => ({
+    ...room,
+    role: memberships.find((m) => m.household_id === room.id)?.role || "member",
+  }));
+
+  const savedRoomId = window.localStorage.getItem(
+    `manalife-active-room-${userId}`,
+  );
+
+  const selected =
+    rooms.find((r) => r.id === preferredRoomId) ||
+    rooms.find((r) => r.id === savedRoomId) ||
+    rooms.find((r) => r.room_type === "family") ||
+    rooms[0];
+
+  if (!selected) {
+    return { rooms: [], familyInfo: null };
+  }
+
+  const { data: memberRows, error: memberError } = await supabase
+    .from("household_members")
+    .select("user_id")
+    .eq("household_id", selected.id);
+
+  if (memberError) throw memberError;
+
+  const memberIds = (memberRows || []).map((m) => m.user_id);
+
+  let profiles = [];
+
+  if (memberIds.length) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id,display_name")
+      .in("id", memberIds);
+
+    if (error) throw error;
+    profiles = data || [];
+  }
+
+  const names = new Map(profiles.map((p) => [p.id, p.display_name]));
+
+  return {
+    rooms,
+    familyInfo: {
+      household: selected,
+      role: selected.role,
+      people: memberIds.map((id) => ({
+        id,
+        display_name: names.get(id) || "Member",
+      })),
+    },
+  };
+}
+
+function RoomSelector({ rooms, home, demo, onSelect, onCreated }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState("friends");
+  const [enabled, setEnabled] = useState([]);
+  const [cards, setCards] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  // These are room-shared modules; period/medicine tracking is always private.
+  const modules = SECTIONS.filter(
+    (s) => !["today", "settings", "periods", "medicines"].includes(s.key),
+  );
+  const presets = {
+    family: [
+      "tasks",
+      "groceries",
+      "bills",
+      "expenses",
+      "reminders",
+      "habits",
+      "meals",
+      "documents",
+      "calendar",
+    ],
+    friends: ["tasks", "bills", "expenses", "calendar"],
+    office: ["tasks", "expenses", "reminders", "calendar"],
+    custom: ["tasks"],
+  };
+
+  function chooseKind(nextKind) {
+    const nextEnabled = presets[nextKind] || presets.custom;
+    setKind(nextKind);
+    setEnabled([...nextEnabled]);
+    setCards(
+      nextEnabled.filter((key) =>
+        ["tasks", "groceries", "bills", "expenses", "calendar"].includes(key),
+      ),
+    );
+  }
+
+  function startCreate() {
+    setName("");
+    chooseKind("friends");
+    setError("");
+    setDropdownOpen(false);
+    setCreateOpen(true);
+  }
+
+  function toggleEnabled(key, checked) {
+    setEnabled((old) =>
+      checked ? [...old, key] : old.filter((k) => k !== key),
+    );
+    if (!checked) setCards((old) => old.filter((k) => k !== key));
+  }
+
+  function toggleCard(key, checked) {
+    setCards((old) => (checked ? [...old, key] : old.filter((k) => k !== key)));
+  }
+
+  async function createRoom(e) {
+    e.preventDefault();
+    setError("");
+    if (demo) {
+      setError("Sign in to create a real room.");
+      return;
+    }
+    if (!name.trim() || enabled.length === 0) {
+      setError("Enter a room name and select at least one feature.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data, error: createError } = await supabase.rpc("create_room", {
+        p_name: name.trim(),
+        p_room_type: kind,
+        p_enabled: enabled,
+        p_cards: cards,
+      });
+      if (createError) throw createError;
+      if (!data) throw new Error("Room was not returned by Supabase.");
+      setCreateOpen(false);
+      onCreated(data);
+    } catch (e) {
+      setError(e.message || "Could not create room.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const fieldStyle = {
+    width: "100%",
+    padding: 11,
+    border: "1px solid #dce6df",
+    borderRadius: 10,
+    background: "#fff",
+    color: "#284a3c",
+  };
+
+  return (
+    <>
+      <div style={{ position: "relative" }}>
+        <button
+          type="button"
+          className="home-card"
+          onClick={() => setDropdownOpen((old) => !old)}
+          aria-expanded={dropdownOpen}
+          style={{
+            width: "100%",
+            cursor: "pointer",
+            textAlign: "left",
+            font: "inherit",
+          }}
+        >
+          <span className="home-avatar">
+            <House size={19} />
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <strong
+              style={{
+                display: "block",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {home.name}
+            </strong>
+            <small>
+              <span className="online-dot" /> {home.room_type || "family"} room
+            </small>
+          </span>
+          <ChevronDown size={15} />
+        </button>
+
+        {dropdownOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: 0,
+              right: 0,
+              zIndex: 60,
+              background: "white",
+              border: "1px solid #dce6df",
+              borderRadius: 12,
+              padding: 8,
+              boxShadow: "0 14px 35px rgba(20,50,30,.16)",
+            }}
+          >
+            <p
+              style={{
+                margin: "4px 8px 8px",
+                fontSize: 11,
+                color: "#82938a",
+                letterSpacing: 1,
+              }}
+            >
+              MY ROOMS
+            </p>
+            {rooms.map((room) => (
+              <button
+                type="button"
+                key={room.id}
+                onClick={() => {
+                  setDropdownOpen(false);
+                  onSelect(room.id);
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "11px 10px",
+                  marginBottom: 4,
+                  borderRadius: 9,
+                  border: "none",
+                  cursor: "pointer",
+                  background: room.id === home.id ? "#e5efe8" : "transparent",
+                  color: "#345a49",
+                }}
+              >
+                {room.id === home.id ? "✓ " : ""}
+                {room.name}
+                <span
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    opacity: 0.7,
+                    marginTop: 2,
+                  }}
+                >
+                  {room.room_type}
+                </span>
+              </button>
+            ))}
+            {!demo && (
+              <button
+                type="button"
+                onClick={startCreate}
+                style={{
+                  width: "100%",
+                  padding: 11,
+                  border: "1px dashed #8da99a",
+                  borderRadius: 9,
+                  background: "#f7faf8",
+                  color: "#496f64",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                + Create New Room
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {createOpen &&
+        createPortal(
+          <div
+            className="modal-backdrop"
+            style={{ zIndex: 10050, padding: 14, overflowY: "auto" }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !saving) setCreateOpen(false);
+            }}
+          >
+            <div
+              className="modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Create room"
+              style={{
+                width: "min(640px, 100%)",
+                maxHeight: "92vh",
+                overflowY: "auto",
+                margin: "auto",
+              }}
+            >
+              <div className="modal-heading">
+                <div>
+                  <p className="eyebrow">CUSTOMIZE YOUR SPACE</p>
+                  <h2>Create New Room</h2>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  title="Close"
+                  onClick={() => setCreateOpen(false)}
+                  disabled={saving}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={createRoom} className="edit-form">
+                <label className="field">
+                  <span>Room Name</span>
+                  <input
+                    required
+                    maxLength={100}
+                    style={fieldStyle}
+                    placeholder="e.g. College Friends"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </label>
+                <label className="field">
+                  <span>Room Type</span>
+                  <select
+                    style={fieldStyle}
+                    value={kind}
+                    onChange={(e) => chooseKind(e.target.value)}
+                  >
+                    <option value="family">Family</option>
+                    <option value="friends">Friends / Roommates</option>
+                    <option value="office">Office Colleagues</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+
+                <h3 style={{ margin: "14px 0 4px" }}>Choose Room Features</h3>
+                <p style={{ color: "#7b8d81", fontSize: 12, marginTop: 0 }}>
+                  Select features for the sidebar. Tick “Overview” to show its
+                  clickable card on the dashboard.
+                </p>
+                <div style={{ display: "grid", gap: 7, margin: "10px 0" }}>
+                  {modules.map((m) => (
+                    <div
+                      key={m.key}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        flexWrap: "wrap",
+                        padding: "10px 12px",
+                        border: "1px solid #e1e9e2",
+                        borderRadius: 10,
+                        background: enabled.includes(m.key)
+                          ? "#f3f8f4"
+                          : "white",
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: "flex",
+                          gap: 9,
+                          alignItems: "center",
+                          flex: 1,
+                          minWidth: 160,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={enabled.includes(m.key)}
+                          onChange={(e) =>
+                            toggleEnabled(m.key, e.target.checked)
+                          }
+                        />
+                        <m.icon size={17} />
+                        <span style={{ fontSize: 13 }}>{m.title}</span>
+                      </label>
+                      <label
+                        style={{
+                          display: "flex",
+                          gap: 7,
+                          alignItems: "center",
+                          fontSize: 12,
+                          color: "#617c6c",
+                          cursor: enabled.includes(m.key)
+                            ? "pointer"
+                            : "not-allowed",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={!enabled.includes(m.key)}
+                          checked={cards.includes(m.key)}
+                          onChange={(e) => toggleCard(m.key, e.target.checked)}
+                        />
+                        Overview
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ color: "#7b8d81", fontSize: 12 }}>
+                  Period & Medicine Tracker are private personal sections, not
+                  room-shared features.
+                </p>
+                {error && <p className="inline-message error">{error}</p>}
+                <button
+                  type="submit"
+                  className="primary-btn full"
+                  disabled={saving}
+                >
+                  {saving ? "Creating..." : "Create Room"}
+                </button>
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+function RoomSettingsPanel({ home, isOwner, demo, onSaved }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(home?.name || "");
+  const [roomType, setRoomType] = useState(home?.room_type || "family");
+  const [enabled, setEnabled] = useState(home?.enabled_modules || []);
+  const [cards, setCards] = useState(home?.overview_modules || []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // Private health sections, Overview and Settings are NOT shared room modules.
+  // Split Bills is excluded until that feature is implemented.
+  const modules = SECTIONS.filter(
+    (s) => !["today", "settings", "periods", "medicines"].includes(s.key),
+  );
+
+  useEffect(() => {
+    setName(home?.name || "");
+    setRoomType(home?.room_type || "family");
+    setEnabled(
+      Array.isArray(home?.enabled_modules) ? [...home.enabled_modules] : [],
+    );
+    setCards(
+      Array.isArray(home?.overview_modules) ? [...home.overview_modules] : [],
+    );
+    setOpen(false);
+    setError("");
+    setSuccess("");
+  }, [home?.id]);
+
+  function openEditor() {
+    setName(home.name);
+    setRoomType(home.room_type || "family");
+    setEnabled(
+      Array.isArray(home.enabled_modules) ? [...home.enabled_modules] : [],
+    );
+    setCards(
+      Array.isArray(home.overview_modules) ? [...home.overview_modules] : [],
+    );
+    setError("");
+    setSuccess("");
+    setOpen(true);
+  }
+
+  function toggleModule(key, checked) {
+    setEnabled((old) =>
+      checked ? [...new Set([...old, key])] : old.filter((x) => x !== key),
+    );
+    if (!checked) {
+      setCards((old) => old.filter((x) => x !== key));
+    }
+  }
+
+  function toggleCard(key, checked) {
+    setCards((old) =>
+      checked ? [...new Set([...old, key])] : old.filter((x) => x !== key),
+    );
+  }
+
+  async function saveRoom(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    if (demo || !isOwner) {
+      setError("Only the owner of this room can change its settings.");
+      return;
+    }
+    if (!name.trim() || name.trim().length > 100) {
+      setError("Room name must be 1 to 100 characters.");
+      return;
+    }
+    if (enabled.length === 0) {
+      setError("Select at least one room feature.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error: dbError } = await supabase.rpc(
+        "update_room_configuration",
+        {
+          p_room: home.id,
+          p_name: name.trim(),
+          p_room_type: roomType,
+          p_enabled: enabled,
+          p_cards: cards.filter((key) => enabled.includes(key)),
+        },
+      );
+      if (dbError) throw dbError;
+      await onSaved(); // Refreshes rooms, active household and visible dashboard.
+      setOpen(false);
+      setSuccess("Room settings saved successfully!");
+    } catch (err) {
+      setError(err.message || "Could not update room settings.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const fieldStyle = {
+    width: "100%",
+    padding: 11,
+    border: "1px solid #dce6df",
+    borderRadius: 10,
+    background: "white",
+    color: "#294f3f",
+  };
+
+  return (
+    <>
+      <div className="panel" style={{ marginBottom: 18 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <h3 style={{ marginBottom: 7 }}>Customize This Room</h3>
+            <p style={{ fontSize: 13, color: "#788e80" }}>
+              Choose sidebar features and which cards appear on Overview.
+            </p>
+            <p style={{ fontSize: 12, color: "#788e80", marginTop: 6 }}>
+              {home.name} · {home.room_type || "family"} ·{" "}
+              {(home.enabled_modules || []).length} features
+            </p>
+          </div>
+          {isOwner && !demo ? (
+            <button type="button" className="primary-btn" onClick={openEditor}>
+              Customize Room
+            </button>
+          ) : (
+            <span style={{ fontSize: 12, color: "#718578" }}>
+              Only room owner can edit
+            </span>
+          )}
+        </div>
+        {success && (
+          <p
+            className="inline-message"
+            style={{ color: "#397455", marginTop: 12 }}
+          >
+            {success}
+          </p>
+        )}
+      </div>
+
+      {open &&
+        createPortal(
+          <div
+            className="modal-backdrop"
+            style={{ zIndex: 10100, padding: 14, overflowY: "auto" }}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget && !saving) setOpen(false);
+            }}
+          >
+            <div
+              className="modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Customize room"
+              style={{
+                width: "min(660px, 100%)",
+                maxHeight: "92vh",
+                overflowY: "auto",
+                margin: "auto",
+              }}
+            >
+              <div className="modal-heading">
+                <div>
+                  <p className="eyebrow">ROOM SETTINGS</p>
+                  <h2>Customize Room</h2>
+                </div>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  title="Close"
+                  aria-label="Close"
+                  onClick={() => setOpen(false)}
+                  disabled={saving}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={saveRoom} className="edit-form">
+                <label className="field">
+                  <span>Room Name</span>
+                  <input
+                    style={fieldStyle}
+                    required
+                    maxLength={100}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </label>
+
+                <label className="field">
+                  <span>Room Type</span>
+                  <select
+                    style={fieldStyle}
+                    value={roomType}
+                    onChange={(e) => setRoomType(e.target.value)}
+                  >
+                    <option value="family">Family</option>
+                    <option value="friends">Friends / Roommates</option>
+                    <option value="office">Office Colleagues</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </label>
+
+                <h3 style={{ margin: "14px 0 4px" }}>Choose Room Features</h3>
+                <p style={{ color: "#728779", fontSize: 12, margin: 0 }}>
+                  Feature = show in sidebar. Overview = show as dashboard card.
+                </p>
+                <div style={{ display: "grid", gap: 8, margin: "12px 0" }}>
+                  {modules.map((m) => {
+                    const Icon = m.icon;
+                    const checked = enabled.includes(m.key);
+                    return (
+                      <div
+                        key={m.key}
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: "11px 12px",
+                          background: checked ? "#f3f8f4" : "#fff",
+                          border: "1px solid #e2e9e3",
+                          borderRadius: 11,
+                        }}
+                      >
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 9,
+                            flex: 1,
+                            minWidth: 160,
+                            cursor: "pointer",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) =>
+                              toggleModule(m.key, e.target.checked)
+                            }
+                          />
+                          <Icon size={17} color="#496f64" />
+                          <span style={{ fontSize: 13 }}>{m.title}</span>
+                        </label>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 7,
+                            fontSize: 12,
+                            color: "#4e7964",
+                            cursor: checked ? "pointer" : "not-allowed",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={!checked}
+                            checked={cards.includes(m.key)}
+                            onChange={(e) =>
+                              toggleCard(m.key, e.target.checked)
+                            }
+                          />
+                          Overview Card
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p style={{ color: "#788d7f", fontSize: 12 }}>
+                  Overview and Settings always stay visible. Period & Medicine
+                  Tracker are personal, not shared room features. Hiding a
+                  feature does not delete its saved data.
+                </p>
+                {error && <p className="inline-message error">{error}</p>}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    type="submit"
+                    className="primary-btn"
+                    disabled={saving}
+                  >
+                    {saving ? "Saving..." : "Save Room Settings"}
+                  </button>
+                  <button
+                    type="button"
+                    className="outline-btn"
+                    disabled={saving}
+                    onClick={() => setOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+function PeriodShareSettings({ home, user, people }) {
+  const [viewerId, setViewerId] = useState("");
+  const [shares, setShares] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const partners = (people || []).filter((p) => p.id !== user?.id);
+
+  async function loadShares() {
+    if (!home?.id || !user?.id) return;
+    const { data, error: dbError } = await supabase
+      .from("period_shares")
+      .select("id,viewer_id,created_at")
+      .eq("room_id", home.id)
+      .eq("owner_id", user.id)
+      .order("created_at", { ascending: false });
+    if (dbError) throw dbError;
+    setShares(data || []);
+  }
+
+  useEffect(() => {
+    setShares([]);
+    setViewerId("");
+    setError("");
+    setNotice("");
+    loadShares().catch((e) => setError(e.message));
+  }, [home?.id, user?.id]);
+
+  async function grantShare() {
+    setError("");
+    setNotice("");
+    if (!partners.some((p) => p.id === viewerId)) {
+      setError("Select your partner from this Couple Room.");
+      return;
+    }
+    if (shares.some((s) => s.viewer_id === viewerId)) {
+      setError("Permission is already active for this person.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error: dbError } = await supabase
+        .from("period_shares")
+        .insert({ room_id: home.id, owner_id: user.id, viewer_id: viewerId });
+      if (dbError) throw dbError;
+      await loadShares();
+      setViewerId("");
+      setNotice("Read-only permission granted.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeShare(share) {
+    if (!window.confirm("Stop sharing your period data with this partner?"))
+      return;
+    setError("");
+    setNotice("");
+    setBusy(true);
+    try {
+      const { error: dbError } = await supabase
+        .from("period_shares")
+        .delete()
+        .eq("id", share.id)
+        .eq("room_id", home.id)
+        .eq("owner_id", user.id);
+      if (dbError) throw dbError;
+      await loadShares();
+      setNotice("Access revoked. Future database reads are blocked.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginTop: 18, marginBottom: 18 }}>
+      <h3>Share Period Tracker with Partner</h3>
+      <p style={{ fontSize: 13, color: "#708576" }}>
+        Private by default. Choose one Couple Room member to grant read-only
+        access. They cannot add, edit or delete your records.
+      </p>
+      <div
+        style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}
+      >
+        <select
+          value={viewerId}
+          disabled={busy}
+          onChange={(e) => setViewerId(e.target.value)}
+          aria-label="Choose partner"
+          style={{
+            flex: "1 1 200px",
+            padding: 11,
+            borderRadius: 9,
+            border: "1px solid #dce6df",
+          }}
+        >
+          <option value="">Select partner</option>
+          {partners.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.display_name || "Member"}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="primary-btn"
+          disabled={busy || !viewerId}
+          onClick={grantShare}
+        >
+          Give View Permission
+        </button>
+      </div>
+      {partners.length === 0 && (
+        <p style={{ fontSize: 13 }}>
+          Invite your partner into this Couple Room first.
+        </p>
+      )}
+      {shares.map((share) => (
+        <div
+          key={share.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+            padding: "12px 0",
+            borderBottom: "1px solid #e6ece7",
+          }}
+        >
+          <span>
+            Shared with:{" "}
+            {partners.find((p) => p.id === share.viewer_id)?.display_name ||
+              "Partner"}
+          </span>
+          <button
+            type="button"
+            className="outline-btn"
+            disabled={busy}
+            onClick={() => revokeShare(share)}
+          >
+            Revoke Access
+          </button>
+        </div>
+      ))}
+      {error && <p style={{ color: "#b83d3d" }}>{error}</p>}
+      {notice && <p style={{ color: "#397455" }}>{notice}</p>}
+    </div>
+  );
+}
+
+function PartnerPeriodViewer({ home, user, ownerIds, people }) {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [chosenOwner, setChosenOwner] = useState("");
+
+  const selectedOwner = ownerIds.includes(chosenOwner)
+    ? chosenOwner
+    : ownerIds[0];
+  const name =
+    people.find((p) => p.id === selectedOwner)?.display_name || "Partner";
+
+  async function loadSharedEntries() {
+    if (!selectedOwner) {
+      setEntries([]);
+      return;
+    }
+    const { data, error: dbError } = await supabase
+      .from("period_entries")
+      .select("start_date,end_date,flow,symptoms,notes")
+      .eq("user_id", selectedOwner)
+      .order("start_date", { ascending: false })
+      .limit(24);
+    if (dbError) throw dbError;
+    setEntries(data || []);
+  }
+
+  useEffect(() => {
+    let active = true;
+    setEntries([]);
+    setLoading(true);
+    setError("");
+    const load = async () => {
+      try {
+        if (!selectedOwner) return;
+        const { data, error: dbError } = await supabase
+          .from("period_entries")
+          .select("start_date,end_date,flow,symptoms,notes")
+          .eq("user_id", selectedOwner)
+          .order("start_date", { ascending: false })
+          .limit(24);
+        if (dbError) throw dbError;
+        if (active) setEntries(data || []);
+      } catch (e) {
+        if (active) setError(e.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, [home?.id, user?.id, selectedOwner]);
+
+  const cycleGaps = entries
+    .slice(0, -1)
+    .map((e, i) =>
+      Math.round(
+        (new Date(e.start_date + "T12:00:00Z") -
+          new Date(entries[i + 1].start_date + "T12:00:00Z")) /
+          86400000,
+      ),
+    )
+    .filter((n) => n >= 15 && n <= 90);
+  const averageCycle = cycleGaps.length
+    ? Math.round(cycleGaps.reduce((a, b) => a + b, 0) / cycleGaps.length)
+    : null;
+  const expected =
+    averageCycle && entries[0]
+      ? addDays(entries[0].start_date, averageCycle)
+      : null;
+
+  return (
+    <>
+      <SectionHeader
+        eyebrow="COUPLE ROOM · READ ONLY"
+        title={`${name}'s Period Tracker`}
+        description="Shared with your partner's permission. You can view, not edit."
+      />
+      {ownerIds.length > 1 && (
+        <label className="field">
+          <span>Choose partner</span>
+          <select
+            value={selectedOwner || ""}
+            onChange={(e) => setChosenOwner(e.target.value)}
+          >
+            {ownerIds.map((id) => (
+              <option key={id} value={id}>
+                {people.find((p) => p.id === id)?.display_name || "Partner"}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <h3>Expected Next Period</h3>
+        <p>
+          {expected
+            ? dateLabel(expected) + " (estimate only)"
+            : "Need at least 2 period starts"}
+        </p>
+        <small>
+          Prediction is not reliable for contraception or pregnancy decisions.
+        </small>
+      </div>
+      <div className="panel">
+        <h3>Shared Period History</h3>
+        {loading && <p>Loading...</p>}
+        {!loading && !entries.length && !error && <p>No records shared yet.</p>}
+        {entries.map((entry, i) => (
+          <div
+            key={`${entry.start_date}-${i}`}
+            style={{ padding: "13px 0", borderBottom: "1px solid #e8eee9" }}
+          >
+            <strong>
+              {dateLabel(entry.start_date)}
+              {entry.end_date ? ` – ${dateLabel(entry.end_date)}` : ""}
+            </strong>
+            <p style={{ fontSize: 13, color: "#6f8177" }}>
+              Flow: {entry.flow || "Not recorded"}
+            </p>
+            {!!entry.symptoms?.length && (
+              <p style={{ fontSize: 13 }}>
+                Symptoms: {entry.symptoms.join(", ")}
+              </p>
+            )}
+            {entry.notes && <p style={{ fontSize: 13 }}>{entry.notes}</p>}
+          </div>
+        ))}
+        {error && <p style={{ color: "#b83d3d" }}>{error}</p>}
+        <button
+          className="outline-btn"
+          type="button"
+          onClick={() => loadSharedEntries().catch((e) => setError(e.message))}
+        >
+          Refresh History
+        </button>
+      </div>
+    </>
+  );
+}
+
+function PersonalGenderSettings({ user, demo }) {
+  const [gender, setGender] = useState(user?.user_metadata?.gender || "");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setGender(user?.user_metadata?.gender || "");
+  }, [user?.id, user?.user_metadata?.gender]);
+
+  async function saveGender() {
+    if (demo || !user?.id || !gender) return;
+
+    setBusy(true);
+    setMessage("");
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { gender },
+      });
+
+      if (error) throw error;
+
+      setMessage("Gender preference saved successfully!");
+    } catch (err) {
+      setMessage(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginBottom: 18 }}>
+      <h3>My Personal Profile</h3>
+
+      <p style={{ fontSize: 13, color: "#718578" }}>
+        Choose your gender to personalize health features.
+      </p>
+
+      <label className="field">
+        <span>Gender</span>
+
+        <select
+          value={gender}
+          disabled={demo}
+          onChange={(e) => setGender(e.target.value)}
+        >
+          <option value="">Select Gender</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+          <option value="prefer_not_to_say">Prefer not to say</option>
+        </select>
+      </label>
+
+      <button
+        type="button"
+        className="primary-btn"
+        onClick={saveGender}
+        disabled={busy || demo || !gender}
+        style={{ marginTop: 14 }}
+      >
+        {busy ? "Saving..." : "Save Profile"}
+      </button>
+
+      {message && <p style={{ marginTop: 10 }}>{message}</p>}
+    </div>
+  );
+}
+
+function LeaveRoomPanel({ home, isOwner, demo, user }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function leaveRoom() {
+    if (demo || isOwner || !home?.id || !user?.id) return;
+
+    const confirmed = window.confirm(
+      `Leave "${home.name}"?\n\n` +
+        "You will lose access to this room's shared data. " +
+        "Other members and their data will remain.",
+    );
+
+    if (!confirmed) return;
+
+    setBusy(true);
+    setError("");
+
+    try {
+      const { error: dbError } = await supabase.rpc("leave_room", {
+        p_room: home.id,
+      });
+
+      if (dbError) throw dbError;
+
+      window.localStorage.removeItem(`manalife-active-room-${user.id}`);
+
+      window.location.reload();
+    } catch (err) {
+      setError(err.message || "Could not leave room.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginBottom: 18 }}>
+      <h3>Room Management</h3>
+
+      <p style={{ fontSize: 13, color: "#718578" }}>
+        Manage your membership in {home.name}.
+      </p>
+
+      {isOwner ? (
+        <p style={{ fontSize: 13, color: "#718578" }}>
+          You are the Room Owner. To leave, first transfer ownership to another
+          member.
+        </p>
+      ) : (
+        <button
+          type="button"
+          disabled={busy || demo}
+          onClick={leaveRoom}
+          style={{
+            padding: "11px 17px",
+            borderRadius: 10,
+            border: "1px solid #e8bbbb",
+            background: "#fff4f4",
+            color: "#b23c3c",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {busy ? "Leaving..." : "Leave Room"}
+        </button>
+      )}
+
+      {error && <p style={{ color: "#b23c3c", marginTop: 10 }}>{error}</p>}
+    </div>
+  );
+}
+function RoomOwnershipPanel({
+  home,
+  user,
+  people = [],
+  isOwner,
+  demo,
+  onChanged,
+}) {
+  const [newOwnerId, setNewOwnerId] = useState("");
+  const [confirmName, setConfirmName] = useState("");
+  const [working, setWorking] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  const candidates = people.filter((person) => person.id !== user?.id);
+
+  useEffect(() => {
+    setNewOwnerId("");
+    setConfirmName("");
+    setError("");
+    setMessage("");
+  }, [home?.id]);
+
+  const fieldStyle = {
+    width: "100%",
+    maxWidth: 460,
+    padding: 11,
+    border: "1px solid #dce6df",
+    borderRadius: 10,
+    background: "white",
+    color: "#294f3f",
+  };
+
+  async function transferOwnership() {
+    if (!home?.id || !user?.id || demo || !isOwner || !newOwnerId || working)
+      return;
+
+    const selectedPerson = candidates.find(
+      (person) => person.id === newOwnerId,
+    );
+    if (!selectedPerson) return;
+
+    const confirmed = window.confirm(
+      `Transfer ownership of "${home.name}" to ${selectedPerson.display_name || "this member"}?\n\n` +
+        "You will become a regular member. The new owner can manage or delete the room.",
+    );
+    if (!confirmed) return;
+
+    setWorking("transfer");
+    setError("");
+    setMessage("");
+
+    try {
+      const { error: dbError } = await supabase.rpc("transfer_room_ownership", {
+        p_room: home.id,
+        p_new_owner: newOwnerId,
+      });
+      if (dbError) throw dbError;
+
+      setNewOwnerId("");
+      await onChanged();
+      setMessage("Ownership transferred. You are now a regular member.");
+    } catch (err) {
+      setError(err.message || "Could not transfer ownership.");
+    } finally {
+      setWorking("");
+    }
+  }
+
+  async function deleteRoom() {
+    if (!home?.id || !user?.id || demo || !isOwner || working) return;
+    if (confirmName !== home.name) {
+      setError("Select the room to confirm deletion.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Permanently delete "${home.name}"?\n\n` +
+        "This deletes the room and its shared data for ALL members. This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    setWorking("delete");
+    setError("");
+    setMessage("");
+
+    try {
+      const { error: dbError } = await supabase.rpc("delete_room_safely", {
+        p_room: home.id,
+        p_confirm_name: confirmName,
+      });
+      if (dbError) throw dbError;
+
+      window.localStorage.removeItem(`manalife-active-room-${user.id}`);
+      setConfirmName("");
+      await onChanged();
+    } catch (err) {
+      setError(err.message || "Could not delete room.");
+    } finally {
+      setWorking("");
+    }
+  }
+
+  if (demo || !isOwner) return null;
+
+  return (
+    <div className="panel" style={{ marginBottom: 18 }}>
+      <h3>Room Ownership &amp; Deletion</h3>
+      <p style={{ color: "#718578", fontSize: 13 }}>
+        Only the current room owner can perform these actions.
+      </p>
+
+      <div style={{ padding: "16px 0", borderBottom: "1px solid #e9eeea" }}>
+        <h4 style={{ marginBottom: 8 }}>Transfer Ownership</h4>
+        <p style={{ fontSize: 13, color: "#718578" }}>
+          Give ownership to an existing room member. You will stay as a regular
+          member and can use Leave Room afterwards.
+        </p>
+
+        {candidates.length ? (
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <select
+              aria-label="New room owner"
+              style={fieldStyle}
+              value={newOwnerId}
+              onChange={(e) => setNewOwnerId(e.target.value)}
+              disabled={!!working}
+            >
+              <option value="">Select new owner</option>
+              {candidates.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name || "Member"}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={transferOwnership}
+              disabled={!newOwnerId || !!working}
+            >
+              {working === "transfer"
+                ? "Transferring..."
+                : "Transfer Ownership"}
+            </button>
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, color: "#718578" }}>
+            No other members in this room. Invite a member before transferring
+            ownership.
+          </p>
+        )}
+      </div>
+
+      <div style={{ paddingTop: 16 }}>
+        <h4 style={{ marginBottom: 8, color: "#a53737" }}>
+          Delete Room Permanently
+        </h4>
+        <p style={{ fontSize: 13, color: "#8f4b4b" }}>
+          All room-shared records will be deleted. Period/Medicine Tracker
+          personal records are not automatically deleted. Remove any Family
+          Documents files through the app or Supabase Storage API before
+          deleting this room.
+        </p>
+
+        <label className="field" style={{ maxWidth: 460 }}>
+          <span>Select Room to Delete</span>
+
+          <select
+            value={confirmName}
+            onChange={(e) => setConfirmName(e.target.value)}
+            style={fieldStyle}
+            disabled={!!working}
+          >
+            <option value="">Select Room</option>
+            <option value={home.name}>{home.name}</option>
+          </select>
+        </label>
+
+        <button
+          type="button"
+          onClick={deleteRoom}
+          disabled={confirmName !== home.name || !!working}
+          style={{
+            marginTop: 12,
+            padding: "11px 16px",
+            border: "1px solid #d6aaaa",
+            borderRadius: 10,
+            background: confirmName === home.name ? "#a53737" : "#f9eeee",
+            color: confirmName === home.name ? "white" : "#a53737",
+            fontWeight: 700,
+            cursor: confirmName === home.name ? "pointer" : "not-allowed",
+          }}
+        >
+          {working === "delete" ? "Deleting..." : "Delete Room Permanently"}
+        </button>
+      </div>
+
+      {error && (
+        <p className="inline-message error" style={{ marginTop: 12 }}>
+          {error}
+        </p>
+      )}
+      {message && <p style={{ color: "#367653", fontSize: 13 }}>{message}</p>}
+    </div>
+  );
+}
 function App() {
+  function PeriodTracker({ user, demo = false }) {
+    const today = isoDate();
+
+    const blankForm = () => ({
+      start_date: today,
+      end_date: "",
+      flow: "",
+      symptoms: [],
+      notes: "",
+    });
+
+    const [entries, setEntries] = useState([]);
+    const [month, setMonth] = useState(today.slice(0, 7));
+    const [form, setForm] = useState(blankForm);
+    const [editingId, setEditingId] = useState(null);
+    const [showPopup, setShowPopup] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+
+    const symptomsList = [
+      "Cramps",
+      "Headache",
+      "Back pain",
+      "Bloating",
+      "Fatigue",
+      "Mood changes",
+      "Breast tenderness",
+      "Other",
+    ];
+
+    const card = {
+      background: "#fff",
+      border: "1px solid #e5e8e5",
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+    };
+
+    const input = {
+      width: "100%",
+      padding: 11,
+      border: "1px solid #dce5df",
+      borderRadius: 9,
+      background: "#fff",
+      color: "#304b40",
+    };
+
+    const button = {
+      padding: "11px 16px",
+      background: "#496f64",
+      color: "white",
+      border: "none",
+      borderRadius: 9,
+      cursor: "pointer",
+    };
+
+    const dayDifference = (a, b) =>
+      Math.round(
+        (new Date(b + "T12:00:00Z") - new Date(a + "T12:00:00Z")) / 86400000,
+      );
+
+    async function loadPeriods() {
+      if (demo || !user?.id) return;
+
+      const { data, error: dbError } = await supabase
+        .from("period_entries")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("start_date", { ascending: false });
+
+      if (dbError) throw dbError;
+      setEntries(data || []);
+    }
+
+    useEffect(() => {
+      setEntries([]);
+      if (!demo && user?.id) {
+        loadPeriods().catch((e) => setError(e.message));
+      }
+    }, [user?.id, demo]);
+
+    function openNew() {
+      setForm(blankForm());
+      setEditingId(null);
+      setError("");
+      setShowPopup(true);
+    }
+
+    function editPeriod(entry) {
+      setEditingId(entry.id);
+      setForm({
+        start_date: entry.start_date,
+        end_date: entry.end_date || "",
+        flow: entry.flow || "",
+        symptoms: entry.symptoms || [],
+        notes: entry.notes || "",
+      });
+      setError("");
+      setShowPopup(true);
+    }
+
+    async function savePeriod(e) {
+      e.preventDefault();
+      setError("");
+
+      if (
+        !form.start_date ||
+        form.start_date > today ||
+        (form.end_date &&
+          (form.end_date < form.start_date || form.end_date > today))
+      ) {
+        setError("Please check the start and end dates.");
+        return;
+      }
+
+      setBusy(true);
+
+      try {
+        const payload = {
+          start_date: form.start_date,
+          end_date: form.end_date || null,
+          flow: form.flow || null,
+          symptoms: form.symptoms,
+          notes: form.notes.trim(),
+        };
+
+        const result = editingId
+          ? await supabase
+              .from("period_entries")
+              .update(payload)
+              .eq("id", editingId)
+              .eq("user_id", user.id)
+          : await supabase.from("period_entries").insert({
+              ...payload,
+              user_id: user.id,
+            });
+
+        if (result.error) throw result.error;
+
+        await loadPeriods();
+        setShowPopup(false);
+        setEditingId(null);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function deletePeriod(id) {
+      if (!window.confirm("Delete this period record?")) return;
+
+      setBusy(true);
+      setError("");
+
+      try {
+        const { error: dbError } = await supabase
+          .from("period_entries")
+          .delete()
+          .eq("id", id)
+          .eq("user_id", user.id);
+
+        if (dbError) throw dbError;
+        await loadPeriods();
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    const ordered = [...entries].sort((a, b) =>
+      a.start_date.localeCompare(b.start_date),
+    );
+
+    const cycles = ordered.slice(1).map((entry, i) => ({
+      date: entry.start_date,
+      days: dayDifference(ordered[i].start_date, entry.start_date),
+    }));
+
+    const validCycles = cycles.filter((c) => c.days >= 15 && c.days <= 90);
+
+    const averageCycle = validCycles.length
+      ? Math.round(
+          validCycles.reduce((s, c) => s + c.days, 0) / validCycles.length,
+        )
+      : null;
+
+    const latestPeriod = ordered[ordered.length - 1];
+
+    const expectedDate =
+      averageCycle && latestPeriod
+        ? addDays(latestPeriod.start_date, averageCycle)
+        : null;
+
+    const durations = entries
+      .filter((e) => e.end_date)
+      .map((e) => dayDifference(e.start_date, e.end_date) + 1);
+
+    const averageDuration = durations.length
+      ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+      : null;
+
+    const [year, monthNumber] = month.split("-").map(Number);
+
+    const daysInMonth = new Date(year, monthNumber, 0).getDate();
+
+    const firstDayOffset =
+      (new Date(year, monthNumber - 1, 1).getDay() + 6) % 7;
+
+    const calendarCells = [
+      ...Array(firstDayOffset).fill(null),
+      ...Array.from(
+        { length: daysInMonth },
+        (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`,
+      ),
+    ];
+
+    const isPeriodDay = (day) =>
+      entries.some(
+        (e) => day >= e.start_date && day <= (e.end_date || e.start_date),
+      );
+
+    if (demo) {
+      return (
+        <>
+          <SectionHeader
+            eyebrow="PERSONAL HEALTH"
+            title="Period Tracker"
+            description="Private menstrual cycle tracking."
+          />
+          <div style={card}>Please sign in to save private period records.</div>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <SectionHeader
+          eyebrow="PERSONAL HEALTH"
+          title="Period Tracker"
+          description="Track your cycle, symptoms and history privately."
+          right={
+            <button type="button" style={button} onClick={openNew}>
+              + Add Period
+            </button>
+          }
+        />
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 12,
+            marginBottom: 18,
+          }}
+        >
+          {[
+            [
+              "Next Expected Period",
+              expectedDate ? dateLabel(expectedDate) : "Need more records",
+            ],
+            ["Average Cycle", averageCycle ? `${averageCycle} days` : "—"],
+            [
+              "Average Period Duration",
+              averageDuration ? `${averageDuration} days` : "—",
+            ],
+          ].map(([label, value]) => (
+            <div key={label} style={card}>
+              <p style={{ color: "#82958a", fontSize: 12 }}>{label}</p>
+              <h3 style={{ marginTop: 10 }}>{value}</h3>
+            </div>
+          ))}
+        </div>
+
+        <div style={card}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <h3>Period Calendar</h3>
+
+            <input
+              type="month"
+              style={{ ...input, width: 175 }}
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+            />
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+              gap: 7,
+              marginTop: 18,
+              textAlign: "center",
+            }}
+          >
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+              <strong key={day} style={{ fontSize: 12 }}>
+                {day}
+              </strong>
+            ))}
+
+            {calendarCells.map((day, i) => (
+              <div
+                key={day || `empty-${i}`}
+                title={
+                  day ? (isPeriodDay(day) ? "Logged period day" : day) : ""
+                }
+                style={{
+                  minHeight: 42,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: 10,
+                  background: day
+                    ? isPeriodDay(day)
+                      ? "#f5ced9"
+                      : day === today
+                        ? "#e2ece5"
+                        : "#f6f7f5"
+                    : "transparent",
+                  color: "#42584b",
+                  fontSize: 13,
+                  fontWeight: isPeriodDay(day) ? 700 : 400,
+                }}
+              >
+                {day ? Number(day.slice(-2)) : ""}
+              </div>
+            ))}
+          </div>
+
+          <p style={{ color: "#819487", fontSize: 12 }}>
+            Pink dates = recorded period days. Only dates you enter are
+            highlighted.
+          </p>
+        </div>
+
+        <div style={card}>
+          <h3>Cycle Length History</h3>
+
+          {validCycles.length === 0 ? (
+            <p>Log at least two period start dates to see cycle trends.</p>
+          ) : (
+            validCycles.slice(-6).map((cycle) => (
+              <div key={cycle.date} style={{ margin: "16px 0" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 13,
+                    marginBottom: 7,
+                  }}
+                >
+                  <span>{dateLabel(cycle.date)}</span>
+                  <strong>{cycle.days} days</strong>
+                </div>
+                <div
+                  style={{
+                    height: 12,
+                    borderRadius: 10,
+                    background: "#f1f1f1",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${Math.min(100, (cycle.days / 90) * 100)}%`,
+                      background: "#c889a1",
+                      borderRadius: 10,
+                    }}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div style={card}>
+          <h3>Period History</h3>
+
+          {entries.length === 0 && (
+            <p>No periods logged yet. Click Add Period to begin.</p>
+          )}
+
+          {entries.map((entry) => (
+            <div
+              key={entry.id}
+              style={{
+                padding: "15px 0",
+                borderBottom: "1px solid #e8eee9",
+                display: "flex",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 12,
+              }}
+            >
+              <div>
+                <strong>
+                  {dateLabel(entry.start_date)}
+                  {entry.end_date && ` – ${dateLabel(entry.end_date)}`}
+                </strong>
+
+                <p style={{ fontSize: 12, color: "#789084" }}>
+                  Flow: {entry.flow || "Not recorded"}
+                </p>
+
+                {!!entry.symptoms?.length && (
+                  <p style={{ fontSize: 12 }}>{entry.symptoms.join(", ")}</p>
+                )}
+
+                {entry.notes && <p style={{ fontSize: 12 }}>{entry.notes}</p>}
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" onClick={() => editPeriod(entry)}>
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => deletePeriod(entry.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {showPopup && (
+          <div
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setShowPopup(false);
+              }
+            }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(20,35,28,0.6)",
+              zIndex: 9999,
+              display: "grid",
+              placeItems: "center",
+              padding: 15,
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Period entry"
+              style={{
+                ...card,
+                width: "min(540px, 100%)",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                margin: 0,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <h2>{editingId ? "Edit Period" : "Add Period"}</h2>
+                <button type="button" onClick={() => setShowPopup(false)}>
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={savePeriod}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: 12,
+                  }}
+                >
+                  <label>
+                    Start Date
+                    <input
+                      type="date"
+                      required
+                      max={today}
+                      style={input}
+                      value={form.start_date}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          start_date: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    End Date (Optional)
+                    <input
+                      type="date"
+                      min={form.start_date}
+                      max={today}
+                      style={input}
+                      value={form.end_date}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          end_date: e.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+
+                <label
+                  style={{
+                    display: "block",
+                    marginTop: 16,
+                  }}
+                >
+                  Overall Flow
+                  <select
+                    style={input}
+                    value={form.flow}
+                    onChange={(e) => setForm({ ...form, flow: e.target.value })}
+                  >
+                    <option value="">Not recorded</option>
+                    <option value="spotting">Spotting</option>
+                    <option value="light">Light</option>
+                    <option value="medium">Medium</option>
+                    <option value="heavy">Heavy</option>
+                  </select>
+                </label>
+
+                <h3 style={{ marginTop: 20 }}>Symptoms</h3>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 12,
+                    marginBottom: 18,
+                  }}
+                >
+                  {symptomsList.map((symptom) => (
+                    <label
+                      key={symptom}
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={form.symptoms.includes(symptom)}
+                        onChange={(e) =>
+                          setForm((old) => ({
+                            ...old,
+                            symptoms: e.target.checked
+                              ? [...old.symptoms, symptom]
+                              : old.symptoms.filter((s) => s !== symptom),
+                          }))
+                        }
+                      />
+                      {symptom}
+                    </label>
+                  ))}
+                </div>
+
+                <label>
+                  Notes (Optional)
+                  <textarea
+                    rows={3}
+                    maxLength={1000}
+                    style={input}
+                    value={form.notes}
+                    onChange={(e) =>
+                      setForm({ ...form, notes: e.target.value })
+                    }
+                  />
+                </label>
+
+                {error && <p style={{ color: "#bd4040" }}>{error}</p>}
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  style={{
+                    ...button,
+                    width: "100%",
+                    marginTop: 20,
+                  }}
+                >
+                  {busy ? "Saving..." : "Save Period"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {error && !showPopup && <p style={{ color: "#bd4040" }}>{error}</p>}
+
+        <p style={{ fontSize: 12, color: "#87988d" }}>
+          Private personal record. Cycle predictions are estimates, not medical
+          advice or a reliable method of contraception.
+        </p>
+      </>
+    );
+  }
+
   const [demo, setDemo] = useState(false);
   const [session, setSession] = useState(null);
   const [booting, setBooting] = useState(true);
   const [loading, setLoading] = useState(false);
   const [familyInfo, setFamilyInfo] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [activeRoomId, setActiveRoomId] = useState(null);
   const [rows, setRows] = useState(EMPTY);
   const [section, setSection] = useState("today");
   const [modal, setModal] = useState(null);
@@ -1991,6 +4895,76 @@ function App() {
   const people = demo ? demoPeople : familyInfo?.people || [];
   const role = demo ? "owner" : familyInfo?.role;
   const isOwner = role === "owner";
+
+  const [periodAccess, setPeriodAccess] = useState({
+    roomId: null,
+    owners: [],
+  });
+
+  useEffect(() => {
+    const roomId = home?.id;
+    const userId = user?.id;
+
+    if (
+      demo ||
+      !roomId ||
+      !userId ||
+      home?.room_type !== "family" ||
+      user?.user_metadata?.gender !== "male"
+    ) {
+      setPeriodAccess({ roomId: null, owners: [] });
+      return;
+    }
+
+    let active = true;
+
+    async function checkPermission() {
+      const { data, error } = await supabase
+        .from("period_shares")
+        .select("owner_id")
+        .eq("room_id", roomId)
+        .eq("viewer_id", userId);
+
+      if (!active) return;
+
+      const owners = error
+        ? []
+        : [...new Set((data || []).map((r) => r.owner_id))];
+
+      setPeriodAccess((old) =>
+        old.roomId === roomId &&
+        old.owners.length === owners.length &&
+        old.owners.every((id, i) => id === owners[i])
+          ? old
+          : { roomId, owners },
+      );
+    }
+
+    checkPermission();
+
+    const timer = window.setInterval(checkPermission, 15000);
+    window.addEventListener("focus", checkPermission);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", checkPermission);
+    };
+  }, [demo, user?.id, user?.user_metadata?.gender, home?.id, home?.room_type]);
+
+  const isCoupleRoom = home?.room_type === "family";
+
+  const ownPeriodAccess =
+    isCoupleRoom && user?.user_metadata?.gender === "female";
+
+  const partnerCanViewPeriods =
+    isCoupleRoom &&
+    user?.user_metadata?.gender === "male" &&
+    periodAccess.roomId === home?.id &&
+    periodAccess.owners.length > 0;
+
+  const canViewPeriods = ownPeriodAccess || partnerCanViewPeriods;
+
   const userName =
     people.find((p) => p.id === user?.id)?.display_name ||
     user?.user_metadata?.display_name ||
@@ -2001,24 +4975,40 @@ function App() {
     setNotice({ message, kind });
     window.setTimeout(() => setNotice(null), 5500);
   };
+
   const refresh = useCallback(
     async (userId, demoMode = demo) => {
       if (demoMode) {
         setRows(loadDemo());
         return;
       }
+
       if (!userId || !configured) {
+        setRooms([]);
         setFamilyInfo(null);
         setRows(EMPTY);
         return;
       }
-      const family = await loadHousehold(userId);
-      setFamilyInfo(family);
-      if (family?.household) {
-        setRows(await loadRemote(family.household.id));
-      } else setRows(EMPTY);
+
+      const result = await loadRoomWorkspace(userId, activeRoomId);
+
+      setRooms(result.rooms);
+      setFamilyInfo(result.familyInfo);
+
+      if (result.familyInfo?.household) {
+        const roomId = result.familyInfo.household.id;
+
+        setActiveRoomId(roomId);
+
+        window.localStorage.setItem(`manalife-active-room-${userId}`, roomId);
+
+        setRows(await loadRemote(roomId));
+      } else {
+        setActiveRoomId(null);
+        setRows(EMPTY);
+      }
     },
-    [demo],
+    [demo, activeRoomId],
   );
 
   useEffect(() => {
@@ -2295,6 +5285,108 @@ function App() {
     );
 
   const titleMap = Object.fromEntries(SECTIONS.map((s) => [s.key, s]));
+
+  const visibleSections = SECTIONS.filter(
+    (s) =>
+      demo ||
+      ["today", "settings", "periods", "medicines"].includes(s.key) ||
+      (home.enabled_modules || []).includes(s.key),
+  );
+
+  const overviewCardData = {
+    tasks: {
+      title: "Tasks for Today",
+      value: dueTasks.length,
+      unit: "tasks",
+      subtitle: `${completedToday} completed`,
+      icon: ListTodo,
+      color: "mint",
+    },
+    groceries: {
+      title: "Shopping List",
+      value: openGroceries,
+      unit: "items",
+      subtitle: "Waiting to buy",
+      icon: ShoppingBasket,
+      color: "peach",
+    },
+    bills: {
+      title: "Upcoming Bills",
+      value: upcomingBills.length,
+      unit: "bills",
+      subtitle: "Stay ahead together",
+      icon: WalletCards,
+      color: "lavender",
+    },
+    expenses: {
+      title: "Daily Expenses",
+      value: "View",
+      unit: "expenses",
+      subtitle: "Track room spending",
+      icon: BarChart3,
+      color: "mint",
+    },
+    calendar: {
+      title: "Future Events",
+      value: upcomingEvents.length,
+      unit: "plans",
+      subtitle: "Moments ahead",
+      icon: CalendarDays,
+      color: "yellow",
+    },
+    habits: {
+      title: "Habit Tracker",
+      value: "Open",
+      unit: "",
+      subtitle: "Track daily habits",
+      icon: Repeat2,
+      color: "mint",
+    },
+    meals: {
+      title: "Meal Planner",
+      value: "Open",
+      unit: "",
+      subtitle: "Plan meals together",
+      icon: Coffee,
+      color: "peach",
+    },
+    reminders: {
+      title: "Reminders",
+      value: "Soon",
+      unit: "",
+      subtitle: "Scheduling coming soon",
+      icon: Bell,
+      color: "yellow",
+    },
+    documents: {
+      title: "Family Documents",
+      value: "Soon",
+      unit: "",
+      subtitle: "Document vault coming soon",
+      icon: LockKeyhole,
+      color: "lavender",
+    },
+  };
+
+  const overviewSelection = demo
+    ? ["tasks", "groceries", "bills", "calendar", "expenses"]
+    : Array.isArray(home.overview_modules)
+      ? home.overview_modules
+      : [];
+
+  const enabledForRoom = demo
+    ? Object.keys(overviewCardData)
+    : Array.isArray(home.enabled_modules)
+      ? home.enabled_modules
+      : [];
+
+  const overviewCards = overviewSelection
+    .filter((key) => enabledForRoom.includes(key) && overviewCardData[key])
+    .map((key) => ({
+      key,
+      ...overviewCardData[key],
+    }));
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
@@ -2309,21 +5401,28 @@ function App() {
             />
           </div>
           <div className="side-caption">WORKSPACE</div>
-          <div className="home-card">
-            <div className="home-avatar">
-              <House size={19} />
-            </div>
-            <div>
-              <strong>{home.name}</strong>
-              <small>
-                <span className="online-dot" /> Private household
-              </small>
-            </div>
-            <ChevronDown size={15} />
-          </div>
+
+          <RoomSelector
+            rooms={rooms}
+            home={home}
+            demo={demo}
+            onSelect={(roomId) => {
+              setSection("today");
+              setSidebarOpen(false);
+              setRows(EMPTY);
+              setActiveRoomId(roomId);
+            }}
+            onCreated={(roomId) => {
+              setSection("today");
+              setSidebarOpen(false);
+              setRows(EMPTY);
+              setActiveRoomId(roomId);
+            }}
+          />
+
           <div className="side-caption">MENU</div>
           <nav className="side-nav" aria-label="Main navigation">
-            {SECTIONS.map(({ key, title, icon: Icon }) => (
+            {visibleSections.map(({ key, title, icon: Icon }) => (
               <button
                 key={key}
                 onClick={() => navigate(key)}
@@ -2470,98 +5569,46 @@ function App() {
                   <div className="art-star star-c">✦</div>
                 </div>
               </div>
+
               <div className="metrics-grid">
-                <div
-                  className="metric"
-                  onClick={() => navigate("tasks")}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate("tasks");
-                    }
-                  }}
-                >
-                  <div className="metric-icon mint">
-                    <ListTodo size={21} />
-                  </div>
-                  <p>Tasks for today</p>
-                  <h2>
-                    {dueTasks.length}
-                    <small> tasks</small>
-                  </h2>
-                  <span>{completedToday} completed</span>
-                </div>
-                <div
-                  className="metric"
-                  onClick={() => navigate("groceries")}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate("groceries");
-                    }
-                  }}
-                >
-                  <div className="metric-icon peach">
-                    <ShoppingBasket size={21} />
-                  </div>
-                  <p>Shopping list</p>
-                  <h2>
-                    {openGroceries}
-                    <small> items</small>
-                  </h2>
-                  <span>Waiting to buy</span>
-                </div>
-                <div className="metric" onClick={() => navigate("bills")}>
-                  <div className="metric-icon lavender">
-                    <WalletCards size={21} />
-                  </div>
-                  <p>Upcoming bills</p>
-                  <h2>
-                    {upcomingBills.length}
-                    <small> bills</small>
-                  </h2>
-                  <span>Stay ahead together</span>
-                </div>
-                <div className="metric" onClick={() => navigate("calendar")}>
-                  <div className="metric-icon yellow">
-                    <CalendarDays size={21} />
-                  </div>
-                  <p>Future events</p>
-                  <h2>
-                    {upcomingEvents.length}
-                    <small> plans</small>
-                  </h2>
-                  <span>Moments ahead</span>
-                </div>
+                {overviewCards.map((card) => {
+                  const Icon = card.icon;
 
-                <div
-                  className="metric"
-                  onClick={() => navigate("expenses")}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      navigate("expenses");
-                    }
-                  }}
-                >
-                  <div className="metric-icon mint">
-                    <BarChart3 size={21} />
+                  return (
+                    <div
+                      key={card.key}
+                      className="metric"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => navigate(card.key)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          navigate(card.key);
+                        }
+                      }}
+                    >
+                      <div className={`metric-icon ${card.color}`}>
+                        <Icon size={21} />
+                      </div>
+
+                      <p>{card.title}</p>
+
+                      <h2>
+                        {card.value}
+                        {card.unit && <small> {card.unit}</small>}
+                      </h2>
+
+                      <span>{card.subtitle}</span>
+                    </div>
+                  );
+                })}
+
+                {overviewCards.length === 0 && (
+                  <div className="panel">
+                    <p>No Overview cards selected for this room.</p>
                   </div>
-
-                  <p>Daily Expenses</p>
-
-                  <h2>
-                    View <small>expenses</small>
-                  </h2>
-
-                  <span>Track your family spending</span>
-                </div>
+                )}
               </div>
               <div className="content-grid">
                 <div className="content-main">
@@ -3120,6 +6167,27 @@ function App() {
             </>
           )}
 
+          {section === "periods" && ownPeriodAccess && (
+            <>
+              <PeriodTracker key={user.id} user={user} demo={demo} />
+
+              <PeriodShareSettings home={home} user={user} people={people} />
+            </>
+          )}
+
+          {section === "periods" && partnerCanViewPeriods && (
+            <PartnerPeriodViewer
+              home={home}
+              user={user}
+              ownerIds={periodAccess.owners}
+              people={people}
+            />
+          )}
+
+          {section === "medicines" && (
+            <MedicineTracker user={user} demo={demo} />
+          )}
+
           {section === "settings" && (
             <>
               <SectionHeader
@@ -3127,6 +6195,33 @@ function App() {
                 title="Household settings"
                 description="Every item is shared with household members only."
               />
+
+              <RoomSettingsPanel
+                home={home}
+                isOwner={isOwner}
+                demo={demo}
+                onSaved={() => refresh(user.id, false)}
+              />
+              <LeaveRoomPanel
+                home={home}
+                isOwner={isOwner}
+                demo={demo}
+                user={user}
+              />
+
+              <RoomOwnershipPanel
+                home={home}
+                user={user}
+                people={people}
+                isOwner={isOwner}
+                demo={demo}
+                onChanged={async () => {
+                  await refresh(user.id, false);
+                  setSection("today");
+                }}
+              />
+
+              <PersonalGenderSettings user={user} demo={demo} />
               <div className="settings-grid">
                 <div className="panel settings-panel">
                   <h3>
@@ -3243,26 +6338,30 @@ function App() {
         </div>
       </div>
       <nav className="mobile-nav" aria-label="Mobile navigation">
-        {SECTIONS.filter((s) =>
-          ["today", "tasks", "groceries", "bills", "calendar"].includes(s.key),
-        ).map(({ key, title, icon: Icon }) => (
-          <button
-            key={key}
-            className={section === key ? "active" : ""}
-            onClick={() => navigate(key)}
-          >
-            <Icon size={21} />
-            <span>
-              {key === "today"
-                ? "Home"
-                : key === "groceries"
-                  ? "Shop"
-                  : key === "bills"
-                    ? "Bills"
-                    : title}
-            </span>
-          </button>
-        ))}
+        {visibleSections
+          .filter((s) =>
+            ["today", "tasks", "groceries", "bills", "calendar"].includes(
+              s.key,
+            ),
+          )
+          .map(({ key, title, icon: Icon }) => (
+            <button
+              key={key}
+              className={section === key ? "active" : ""}
+              onClick={() => navigate(key)}
+            >
+              <Icon size={21} />
+              <span>
+                {key === "today"
+                  ? "Home"
+                  : key === "groceries"
+                    ? "Shop"
+                    : key === "bills"
+                      ? "Bills"
+                      : title}
+              </span>
+            </button>
+          ))}
       </nav>
       {modal && (
         <EditModal
