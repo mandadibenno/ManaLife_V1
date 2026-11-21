@@ -1,3 +1,5 @@
+> **ManaLife 2.0 note:** the steps below still apply. `npm run build:mobile` is now a shortcut for `node scripts/build-mobile.mjs`. The new app bundles its fonts, so native builds render correctly offline.
+
 # ManaLife — Android APK + iOS/TestFlight Preparation
 
 This is a **drop-in native build kit** for the **existing** `ManaLife_V1` GitHub/Windows project. It does NOT include an APK or a signed TestFlight IPA: those must be compiled. It does not replace your source, Supabase schema, or domain setup.

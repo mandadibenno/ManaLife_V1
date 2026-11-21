@@ -1,0 +1,137 @@
+/* ManaLife design tokens. Accent tokens are set at runtime per space (config/accents.js)
+   and registered with @property so switching spaces animates the whole theme. */
+
+@property --accent { syntax: '<color>'; inherits: true; initial-value: #6e56f8; }
+@property --accent-solid { syntax: '<color>'; inherits: true; initial-value: #5b43e6; }
+@property --accent-soft { syntax: '<color>'; inherits: true; initial-value: #eeebff; }
+@property --accent-softer { syntax: '<color>'; inherits: true; initial-value: #f7f5ff; }
+@property --accent-text { syntax: '<color>'; inherits: true; initial-value: #4a35cf; }
+@property --accent-glow { syntax: '<color>'; inherits: true; initial-value: rgba(110, 86, 248, 0.22); }
+
+:root {
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+
+  /* Neutrals — light */
+  --bg: #f7f6f3;
+  --bg-tint: #f2f0eb;
+  --surface: #ffffff;
+  --surface-2: #f6f5f2;
+  --surface-3: #eeece7;
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --border: #ebe9e4;
+  --border-strong: #dcd9d2;
+  --text: #17171c;
+  --text-2: #55545e;
+  --text-3: #6e6c77;
+  --text-inverse: #ffffff;
+  --overlay: rgba(18, 18, 24, 0.38);
+
+  --accent: #6e56f8;
+  --accent-solid: #5b43e6;
+  --accent-soft: #eeebff;
+  --accent-softer: #f7f5ff;
+  --accent-text: #4a35cf;
+  --accent-on: #ffffff;
+  --accent-glow: rgba(110, 86, 248, 0.22);
+
+  --success: #12a06c;
+  --success-soft: #e3f6ee;
+  --success-text: #0a6c49;
+  --warning: #d98a12;
+  --warning-soft: #fdf3e1;
+  --warning-text: #8f5600;
+  --danger: #dc3d43;
+  --danger-soft: #fdecec;
+  --danger-text: #b42328;
+  --info: #2f7de1;
+  --info-soft: #e8f1fd;
+  --info-text: #1c5bb0;
+
+  /* Chart / category palette (8 distinguishable hues) */
+  --c1: #6e56f8; --c2: #e2457a; --c3: #e07b22; --c4: #1b96d8;
+  --c5: #14a06d; --c6: #a855f7; --c7: #d9a400; --c8: #5b667f;
+
+  /* Shape */
+  --r-xs: 8px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 22px;
+  --r-2xl: 28px;
+  --r-full: 999px;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgba(22, 22, 30, 0.05);
+  --shadow-sm: 0 1px 2px rgba(22, 22, 30, 0.04), 0 2px 6px rgba(22, 22, 30, 0.04);
+  --shadow-md: 0 2px 4px rgba(22, 22, 30, 0.04), 0 8px 24px -6px rgba(22, 22, 30, 0.1);
+  --shadow-lg: 0 4px 8px rgba(22, 22, 30, 0.04), 0 20px 48px -12px rgba(22, 22, 30, 0.18);
+  --shadow-xl: 0 8px 16px rgba(22, 22, 30, 0.06), 0 32px 80px -16px rgba(22, 22, 30, 0.28);
+  --ring: 0 0 0 3px var(--accent-glow);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --dur-3: 260ms;
+  --dur-theme: 420ms;
+
+  /* Layout */
+  --sidebar-w: 268px;
+  --topbar-h: 64px;
+  --bottomnav-h: 66px;
+  --content-max: 1240px;
+  --gutter: 16px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  transition: --accent var(--dur-theme) var(--ease-out), --accent-solid var(--dur-theme) var(--ease-out),
+    --accent-soft var(--dur-theme) var(--ease-out), --accent-softer var(--dur-theme) var(--ease-out),
+    --accent-text var(--dur-theme) var(--ease-out), --accent-glow var(--dur-theme) var(--ease-out);
+}
+
+:root[data-theme='dark'] {
+  --bg: #0d0d11;
+  --bg-tint: #111116;
+  --surface: #15151b;
+  --surface-2: #1b1b22;
+  --surface-3: #23232b;
+  --surface-glass: rgba(21, 21, 27, 0.72);
+  --border: #24242c;
+  --border-strong: #32323c;
+  --text: #f3f2f7;
+  --text-2: #b4b2bf;
+  --text-3: #8b8997;
+  --text-inverse: #111116;
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  --success: #3fcf96;
+  --success-soft: rgba(63, 207, 150, 0.14);
+  --success-text: #7ee2bb;
+  --warning: #f0b048;
+  --warning-soft: rgba(240, 176, 72, 0.14);
+  --warning-text: #f6cb85;
+  --danger: #ff6b70;
+  --danger-soft: rgba(255, 107, 112, 0.14);
+  --danger-text: #ff9a9d;
+  --info: #6aa8ff;
+  --info-soft: rgba(106, 168, 255, 0.14);
+  --info-text: #a2c8ff;
+
+  --c1: #8e7dff; --c2: #ff7ca7; --c3: #ffa857; --c4: #5ec2f6;
+  --c5: #48d49d; --c6: #c084fc; --c7: #f2c94c; --c8: #a4aec6;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.3), 0 20px 48px -12px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.35), 0 32px 80px -16px rgba(0, 0, 0, 0.7);
+}
+
+@media (min-width: 640px) {
+  :root { --gutter: 24px; }
+}
+@media (min-width: 1024px) {
+  :root { --gutter: 36px; }
+}
